@@ -1,0 +1,35 @@
+{
+  "name": "MetaNews Core Pipelines",
+  "workflows": [
+    {
+      "id": "WF-01",
+      "name": "Ingestion_Watcher",
+      "trigger": "cron",
+      "schedule": "*/2 * * * *",
+      "steps": ["Fetch RSS", "Normalize", "Hash", "Redis Dedupe"]
+    },
+    {
+      "id": "WF-02",
+      "name": "Intelligence_Analyst",
+      "steps": [
+        "LangChain Prompt",
+        "Gemini Flash",
+        "GPT-5.2 Verification",
+        "Schema Validation"
+      ]
+    },
+    {
+      "id": "WF-03",
+      "name": "Gatekeeper",
+      "rules": [
+        "severity >= 40",
+        "confidence >= 0.5"
+      ]
+    },
+    {
+      "id": "WF-04",
+      "name": "Distribution",
+      "channels": ["Web", "Telegram", "X (optional)"]
+    }
+  ]
+}
