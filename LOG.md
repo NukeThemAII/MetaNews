@@ -25,6 +25,8 @@ All agents and contributors **must** log work here.
 - Created `lib/db.ts` for PostgreSQL queries
 - Added PWA manifest
 - Added `@types/pg` for TypeScript
+- Created `DEPLOY.md` with VPS instructions
+- Updated `TODO.md` with recent progress
 
 **Why:**
 - Original home page was basic Next.js template

@@ -39,21 +39,22 @@
 *Target: Week 3-4*
 
 ### Setup
-- [ ] Initialize Next.js app
-- [ ] Configure Tailwind CSS
-- [ ] Set up database connection
+- [x] Initialize Next.js app
+- [x] Configure Tailwind CSS
+- [x] Set up database connection (lib/db.ts)
 
 ### Pages
-- [ ] Landing page (marketing)
-- [ ] Live feed UI
+- [x] Landing page (marketing)
+- [x] Live feed UI (mock data)
 - [ ] Event detail view
 - [ ] Authentication (NextAuth)
 
 ### Features
 - [ ] Real-time updates (WebSocket)
-- [ ] Category filtering
-- [ ] Severity sorting
+- [x] Category filtering
+- [x] Severity sorting
 - [ ] Search functionality
+
 
 ---
 
