@@ -1,0 +1,499 @@
+{
+    "name": "WF-04 Distribution",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "webhook_trigger",
+            "name": "Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                240,
+                300
+            ],
+            "webhookId": "distribution-trigger"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Format alert message for distribution\nconst event = $input.first().json;\n\nconst severityEmoji = event.severity >= 80 ? '🚨' : event.severity >= 60 ? '⚠️' : 'ℹ️';\nconst categoryEmoji = {\n  'War': '⚔️',\n  'Market': '📈',\n  'Disaster': '🌊',\n  'Tech': '💻',\n  'Policy': '🏛️',\n  'Crypto': '₿',\n  'Energy': '⚡',\n  'Other': '📰'\n}[event.category] || '📰';\n\nconst impactBadge = {\n  'high': '🔴 HIGH IMPACT',\n  'medium': '🟡 MEDIUM IMPACT',\n  'low': '🟢 LOW IMPACT',\n  'none': ''\n}[event.market_impact] || '';\n\nconst telegramMessage = `\n${severityEmoji} ${categoryEmoji} <b>${event.title}</b>\n\n${event.alert || ''}\n\n${impactBadge ? impactBadge + '\\n\\n' : ''}📊 Severity: ${event.severity}/100 | Confidence: ${Math.round(event.confidence * 100)}%\n\n<b>Summary:</b>\n${Array.isArray(event.summary) ? event.summary.map((s, i) => `${i + 1}. ${s}`).join('\\n') : event.summary}\n\n${event.entities?.length ? '🏷️ ' + (Array.isArray(event.entities) ? event.entities.slice(0, 5).join(' | ') : event.entities) : ''}\n\n🔗 <a href=\"${event.source_url || 'https://metanews.app'}\">Read more</a>\n`;\n\nreturn {\n  json: {\n    ...event,\n    telegram_message: telegramMessage.trim(),\n    is_premium: event.severity >= 80\n  }\n};"
+            },
+            "id": "format_message",
+            "name": "Format Alert Message",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {},
+                    "conditions": [
+                        {
+                            "id": "is_premium",
+                            "leftValue": "={{ $json.is_premium }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "tier_router",
+            "name": "Premium or Free?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "sendMessage",
+                "chatId": "={{ $env.TELEGRAM_PREMIUM_CHANNEL }}",
+                "text": "={{ $json.telegram_message }}",
+                "additionalFields": {
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": false
+                }
+            },
+            "id": "send_premium",
+            "name": "Send to Premium Channel",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.1,
+            "position": [
+                900,
+                200
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "telegram_cred",
+                    "name": "Telegram Bot"
+                }
+            },
+            "retryOnFail": true,
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+        },
+        {
+            "parameters": {
+                "operation": "sendMessage",
+                "chatId": "={{ $env.TELEGRAM_FREE_CHANNEL }}",
+                "text": "={{ $json.telegram_message }}",
+                "additionalFields": {
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": false
+                }
+            },
+            "id": "send_free",
+            "name": "Send to Free Channel",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.1,
+            "position": [
+                900,
+                400
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "telegram_cred",
+                    "name": "Telegram Bot"
+                }
+            },
+            "retryOnFail": true,
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "alerts",
+                "columns": "event_id, user_id, channel, status, sent_at",
+                "returnFields": "id"
+            },
+            "id": "log_premium_alert",
+            "name": "Log Premium Alert",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1120,
+                200
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "alerts",
+                "columns": "event_id, user_id, channel, status, sent_at",
+                "returnFields": "id"
+            },
+            "id": "log_free_alert",
+            "name": "Log Free Alert",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1120,
+                400
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT id, telegram_id, preferences FROM users WHERE tier = 'premium' AND telegram_id IS NOT NULL AND (preferences->'notifications'->>'telegram')::boolean = true"
+            },
+            "id": "get_premium_users",
+            "name": "Get Premium Users",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1340,
+                200
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "batchSize": 10,
+                "options": {}
+            },
+            "id": "batch_users",
+            "name": "Batch Users",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [
+                1560,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Check if user preferences match event category\nconst user = $input.first().json;\nconst event = $('Format Alert Message').first().json;\n\nconst userCategories = user.preferences?.categories || [];\nconst minSeverity = user.preferences?.min_severity || 40;\n\nconst shouldNotify = \n  (userCategories.length === 0 || userCategories.includes(event.category)) &&\n  event.severity >= minSeverity;\n\nreturn {\n  json: {\n    ...user,\n    event_id: event.id,\n    should_notify: shouldNotify,\n    message: event.telegram_message\n  }\n};"
+            },
+            "id": "filter_preferences",
+            "name": "Filter by Preferences",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1780,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {},
+                    "conditions": [
+                        {
+                            "id": "should_notify",
+                            "leftValue": "={{ $json.should_notify }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "notify_check",
+            "name": "Should Notify?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                2000,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "sendMessage",
+                "chatId": "={{ $json.telegram_id }}",
+                "text": "={{ $json.message }}",
+                "additionalFields": {
+                    "parse_mode": "HTML"
+                }
+            },
+            "id": "send_dm",
+            "name": "Send DM",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.1,
+            "position": [
+                2220,
+                200
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "telegram_cred",
+                    "name": "Telegram Bot"
+                }
+            },
+            "continueOnFail": true
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "alerts",
+                "columns": "event_id, user_id, channel, status, sent_at"
+            },
+            "id": "log_dm",
+            "name": "Log DM Alert",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                2440,
+                200
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "errorMessage": "={{ $json.error }}"
+            },
+            "id": "error_trigger",
+            "name": "Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                900,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Log delivery failure\nconst error = $input.first().json;\n\nreturn {\n  json: {\n    event_id: error.event_id || null,\n    channel: 'telegram',\n    status: 'failed',\n    error_message: error.message || 'Unknown error'\n  }\n};"
+            },
+            "id": "log_error",
+            "name": "Log Error",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1120,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "alerts",
+                "columns": "event_id, channel, status, error_message"
+            },
+            "id": "insert_error",
+            "name": "Insert Error Record",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1340,
+                500
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Format Alert Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Alert Message": {
+            "main": [
+                [
+                    {
+                        "node": "Premium or Free?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Premium or Free?": {
+            "main": [
+                [
+                    {
+                        "node": "Send to Premium Channel",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send to Free Channel",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send to Premium Channel": {
+            "main": [
+                [
+                    {
+                        "node": "Log Premium Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send to Free Channel": {
+            "main": [
+                [
+                    {
+                        "node": "Log Free Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Premium Alert": {
+            "main": [
+                [
+                    {
+                        "node": "Get Premium Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Premium Users": {
+            "main": [
+                [
+                    {
+                        "node": "Batch Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Batch Users": {
+            "main": [
+                [
+                    {
+                        "node": "Filter by Preferences",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Filter by Preferences": {
+            "main": [
+                [
+                    {
+                        "node": "Should Notify?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Should Notify?": {
+            "main": [
+                [
+                    {
+                        "node": "Send DM",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
+        },
+        "Send DM": {
+            "main": [
+                [
+                    {
+                        "node": "Log DM Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Log Error",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Error": {
+            "main": [
+                [
+                    {
+                        "node": "Insert Error Record",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner"
+    },
+    "staticData": null,
+    "tags": [
+        {
+            "name": "distribution"
+        },
+        {
+            "name": "telegram"
+        },
+        {
+            "name": "production"
+        }
+    ],
+    "triggerCount": 1,
+    "updatedAt": "2026-01-03T00:00:00.000Z",
+    "versionId": "1.0.0"
+}

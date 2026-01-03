@@ -1,0 +1,370 @@
+{
+    "name": "WF-03 Gatekeeper Filter",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "webhook_trigger",
+            "name": "Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                240,
+                300
+            ],
+            "webhookId": "gatekeeper-trigger"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "min_severity",
+                            "leftValue": "={{ $json.analysis.severity }}",
+                            "rightValue": 40,
+                            "operator": {
+                                "type": "number",
+                                "operation": "gte"
+                            }
+                        },
+                        {
+                            "id": "min_confidence",
+                            "leftValue": "={{ $json.analysis.confidence }}",
+                            "rightValue": 0.5,
+                            "operator": {
+                                "type": "number",
+                                "operation": "gte"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "quality_gate",
+            "name": "Quality Gate",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Log discarded event for analysis\nconst item = $input.first().json;\n\nconsole.log('Event discarded:', {\n  title: item.title,\n  severity: item.analysis?.severity,\n  confidence: item.analysis?.confidence,\n  reason: item.analysis?.severity < 40 ? 'low_severity' : 'low_confidence'\n});\n\nreturn { json: { discarded: true, reason: item.analysis?.severity < 40 ? 'low_severity' : 'low_confidence' } };"
+            },
+            "id": "log_discarded",
+            "name": "Log Discarded",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                680,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {},
+                    "conditions": [
+                        {
+                            "id": "critical_severity",
+                            "leftValue": "={{ $json.analysis.severity }}",
+                            "rightValue": 80,
+                            "operator": {
+                                "type": "number",
+                                "operation": "gte"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "priority_router",
+            "name": "Priority Router",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Format for database insertion\nconst item = $input.first().json;\nconst analysis = item.analysis;\n\nreturn {\n  json: {\n    source_id: item.source_id || null,\n    source_hash: item.source_hash,\n    title: analysis.title,\n    alert: analysis.alert || null,\n    summary: JSON.stringify(analysis.summary),\n    raw_content: item.content,\n    category: analysis.category,\n    severity: analysis.severity,\n    confidence: analysis.confidence,\n    market_impact: analysis.market_impact || 'none',\n    entities: JSON.stringify(analysis.entities || []),\n    geo: analysis.geo ? JSON.stringify(analysis.geo) : null,\n    source_url: item.url,\n    published_at: item.published_at,\n    is_critical: analysis.severity >= 80,\n    is_verified: analysis.verified || false\n  }\n};"
+            },
+            "id": "format_critical",
+            "name": "Format Critical Event",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                900,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Format for database insertion\nconst item = $input.first().json;\nconst analysis = item.analysis;\n\nreturn {\n  json: {\n    source_id: item.source_id || null,\n    source_hash: item.source_hash,\n    title: analysis.title,\n    alert: analysis.alert || null,\n    summary: JSON.stringify(analysis.summary),\n    raw_content: item.content,\n    category: analysis.category,\n    severity: analysis.severity,\n    confidence: analysis.confidence,\n    market_impact: analysis.market_impact || 'none',\n    entities: JSON.stringify(analysis.entities || []),\n    geo: analysis.geo ? JSON.stringify(analysis.geo) : null,\n    source_url: item.url,\n    published_at: item.published_at,\n    is_critical: false,\n    delay_minutes: 30 + Math.floor(Math.random() * 30)\n  }\n};"
+            },
+            "id": "format_regular",
+            "name": "Format Regular Event",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                900,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "events",
+                "columns": "source_id, source_hash, title, alert, summary, raw_content, category, severity, confidence, market_impact, entities, geo, source_url, published_at",
+                "returnFields": "id"
+            },
+            "id": "insert_critical",
+            "name": "Insert Critical Event",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1120,
+                200
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "events",
+                "columns": "source_id, source_hash, title, alert, summary, raw_content, category, severity, confidence, market_impact, entities, geo, source_url, published_at",
+                "returnFields": "id"
+            },
+            "id": "insert_regular",
+            "name": "Insert Regular Event",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1120,
+                400
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "workflowId": "WF-04-distribution",
+                "options": {
+                    "waitForSubWorkflow": false
+                }
+            },
+            "id": "trigger_instant_alert",
+            "name": "Trigger Instant Alert",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                1340,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "UPDATE events SET promoted_at = NOW() WHERE id = '{{ $json.id }}'"
+            },
+            "id": "mark_promoted",
+            "name": "Mark Promoted",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.3,
+            "position": [
+                1560,
+                200
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "postgres_cred",
+                    "name": "PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "amount": "={{ $json.delay_minutes }}",
+                "unit": "minutes"
+            },
+            "id": "delay_free",
+            "name": "Delay for Free Tier",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [
+                1340,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "workflowId": "WF-04-distribution",
+                "options": {
+                    "waitForSubWorkflow": false
+                }
+            },
+            "id": "trigger_delayed_alert",
+            "name": "Trigger Delayed Alert",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                1560,
+                400
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Quality Gate",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Quality Gate": {
+            "main": [
+                [
+                    {
+                        "node": "Priority Router",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Log Discarded",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Priority Router": {
+            "main": [
+                [
+                    {
+                        "node": "Format Critical Event",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Format Regular Event",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Critical Event": {
+            "main": [
+                [
+                    {
+                        "node": "Insert Critical Event",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Regular Event": {
+            "main": [
+                [
+                    {
+                        "node": "Insert Regular Event",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Insert Critical Event": {
+            "main": [
+                [
+                    {
+                        "node": "Trigger Instant Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Trigger Instant Alert": {
+            "main": [
+                [
+                    {
+                        "node": "Mark Promoted",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Insert Regular Event": {
+            "main": [
+                [
+                    {
+                        "node": "Delay for Free Tier",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Delay for Free Tier": {
+            "main": [
+                [
+                    {
+                        "node": "Trigger Delayed Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner"
+    },
+    "staticData": null,
+    "tags": [
+        {
+            "name": "filter"
+        },
+        {
+            "name": "routing"
+        },
+        {
+            "name": "production"
+        }
+    ],
+    "triggerCount": 1,
+    "updatedAt": "2026-01-03T00:00:00.000Z",
+    "versionId": "1.0.0"
+}

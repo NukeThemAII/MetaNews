@@ -1,0 +1,508 @@
+{
+    "name": "WF-02 Intelligence Analyst",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "webhook_trigger",
+            "name": "Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                240,
+                300
+            ],
+            "webhookId": "intelligence-trigger"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Prepare content for AI analysis\nconst item = $input.first().json;\n\nconst prompt = `You are an OSINT intelligence analyst. Analyze the following news content and extract structured intelligence.\n\nCONTENT:\nTitle: ${item.title}\nContent: ${item.content}\nSource URL: ${item.url}\nPublished: ${item.published_at}\n\nOUTPUT FORMAT (strict JSON only, no markdown):\n{\n  \"category\": \"War|Market|Disaster|Tech|Policy|Crypto|Energy|Other\",\n  \"severity\": 0-100,\n  \"confidence\": 0.0-1.0,\n  \"market_impact\": \"none|low|medium|high\",\n  \"entities\": [\"list of entities, tickers, names\"],\n  \"geo\": {\"lat\": number or null, \"lon\": number or null},\n  \"title\": \"Neutral, factual headline (max 100 chars)\",\n  \"alert\": \"One-sentence urgent alert (max 200 chars)\",\n  \"summary\": [\"What happened\", \"Why it matters\", \"What to watch next\"]\n}\n\nSCORING RULES:\n- Severity 80-100: Market-moving, geopolitical crisis, major disaster\n- Severity 60-79: Significant regional impact, notable market moves\n- Severity 40-59: Industry-specific, moderate importance\n- Severity 0-39: Low impact, routine news\n- Confidence < 0.5: Unverified, rumor, single-source → set confidence low\n\nRespond with ONLY valid JSON, no explanations.`;\n\nreturn {\n  json: {\n    ...item,\n    prompt: prompt\n  }\n};"
+            },
+            "id": "prepare_prompt",
+            "name": "Prepare AI Prompt",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "get",
+                "key": "={{ 'semantic:' + $json.source_hash.substring(0, 16) }}"
+            },
+            "id": "check_semantic_cache",
+            "name": "Check Semantic Cache",
+            "type": "n8n-nodes-base.redis",
+            "typeVersion": 1,
+            "position": [
+                680,
+                300
+            ],
+            "credentials": {
+                "redis": {
+                    "id": "redis_cred",
+                    "name": "Redis"
+                }
+            },
+            "continueOnFail": true
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {},
+                    "conditions": [
+                        {
+                            "id": "cache_miss",
+                            "leftValue": "={{ $json.cached_result }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "empty"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "cache_check",
+            "name": "Cache Hit?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                900,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "resource": "chat",
+                "model": "gemini-1.5-flash",
+                "prompt": "={{ $json.prompt }}",
+                "options": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 1024
+                }
+            },
+            "id": "gemini_classify",
+            "name": "Gemini Flash Classify",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1120,
+                200
+            ],
+            "credentials": {
+                "googleGeminiApi": {
+                    "id": "gemini_cred",
+                    "name": "Google Gemini"
+                }
+            },
+            "retryOnFail": true,
+            "maxTries": 2,
+            "waitBetweenTries": 2000
+        },
+        {
+            "parameters": {
+                "jsCode": "// Parse and validate Gemini response\nconst item = $input.first().json;\nlet analysis;\n\ntry {\n  // Extract JSON from response\n  const responseText = item.response || item.text || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  \n  if (!jsonMatch) {\n    throw new Error('No JSON found in response');\n  }\n  \n  analysis = JSON.parse(jsonMatch[0]);\n  \n  // Validate required fields\n  const required = ['category', 'severity', 'confidence', 'title', 'summary'];\n  for (const field of required) {\n    if (analysis[field] === undefined) {\n      throw new Error(`Missing required field: ${field}`);\n    }\n  }\n  \n  // Validate ranges\n  if (analysis.severity < 0 || analysis.severity > 100) {\n    throw new Error('Severity out of range 0-100');\n  }\n  if (analysis.confidence < 0 || analysis.confidence > 1) {\n    throw new Error('Confidence out of range 0-1');\n  }\n  \n  // Validate enums\n  const validCategories = ['War', 'Market', 'Disaster', 'Tech', 'Policy', 'Crypto', 'Energy', 'Other'];\n  if (!validCategories.includes(analysis.category)) {\n    analysis.category = 'Other';\n  }\n  \n  const validImpacts = ['none', 'low', 'medium', 'high'];\n  if (!validImpacts.includes(analysis.market_impact)) {\n    analysis.market_impact = 'none';\n  }\n  \n} catch (error) {\n  // Return with validation error for retry\n  return {\n    json: {\n      ...item,\n      validation_error: error.message,\n      needs_retry: true\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...item,\n    analysis: analysis,\n    needs_verification: analysis.severity >= 60\n  }\n};"
+            },
+            "id": "validate_response",
+            "name": "Validate & Parse",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1340,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {},
+                    "conditions": [
+                        {
+                            "id": "high_severity",
+                            "leftValue": "={{ $json.needs_verification }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "severity_router",
+            "name": "High Severity?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1560,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "resource": "chat",
+                "model": "gpt-4o",
+                "messages": {
+                    "values": [
+                        {
+                            "content": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values. If you agree, confirm. Original analysis: ' + JSON.stringify($json.analysis) + ' Original content: ' + $json.title + ' - ' + $json.content.substring(0, 500) }}"
+                        }
+                    ]
+                },
+                "options": {
+                    "temperature": 0.1,
+                    "maxTokens": 512
+                }
+            },
+            "id": "gpt_verify",
+            "name": "GPT-4 Verify",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                1780,
+                100
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "openai_cred",
+                    "name": "OpenAI"
+                }
+            },
+            "retryOnFail": true,
+            "maxTries": 2
+        },
+        {
+            "parameters": {
+                "jsCode": "// Merge verification feedback\nconst item = $input.first().json;\nconst verification = item.verification_response || '';\n\n// Check if GPT adjusted anything\nconst adjustedSeverity = verification.match(/severity[:\\s]+(\\d+)/i);\nconst adjustedConfidence = verification.match(/confidence[:\\s]+([\\d.]+)/i);\n\nif (adjustedSeverity) {\n  item.analysis.severity = parseInt(adjustedSeverity[1]);\n}\nif (adjustedConfidence) {\n  item.analysis.confidence = parseFloat(adjustedConfidence[1]);\n}\n\nitem.analysis.verified = true;\n\nreturn { json: item };"
+            },
+            "id": "merge_verification",
+            "name": "Merge Verification",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                2000,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "combine",
+                "mergeByFields": {
+                    "values": [
+                        {
+                            "field1": "source_hash",
+                            "field2": "source_hash"
+                        }
+                    ]
+                }
+            },
+            "id": "merge_paths",
+            "name": "Merge Paths",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 2.1,
+            "position": [
+                2220,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "set",
+                "key": "={{ 'semantic:' + $json.source_hash.substring(0, 16) }}",
+                "value": "={{ JSON.stringify($json.analysis) }}",
+                "expire": true,
+                "ttl": 3600
+            },
+            "id": "cache_result",
+            "name": "Cache Result",
+            "type": "n8n-nodes-base.redis",
+            "typeVersion": 1,
+            "position": [
+                2440,
+                200
+            ],
+            "credentials": {
+                "redis": {
+                    "id": "redis_cred",
+                    "name": "Redis"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "workflowId": "WF-03-gatekeeper",
+                "options": {}
+            },
+            "id": "trigger_gatekeeper",
+            "name": "Trigger Gatekeeper",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                2660,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Use cached result\nconst item = $input.first().json;\nconst cached = JSON.parse(item.cached_result);\n\nreturn {\n  json: {\n    ...item,\n    analysis: cached,\n    from_cache: true\n  }\n};"
+            },
+            "id": "use_cache",
+            "name": "Use Cached Result",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1120,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {},
+                    "conditions": [
+                        {
+                            "id": "validation_failed",
+                            "leftValue": "={{ $json.needs_retry }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "retry_check",
+            "name": "Validation Failed?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1560,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "resource": "chat",
+                "model": "gemini-1.5-pro",
+                "prompt": "={{ $json.prompt + '\\n\\nPREVIOUS ATTEMPT FAILED: ' + $json.validation_error + '\\n\\nPlease provide ONLY valid JSON.' }}",
+                "options": {
+                    "temperature": 0.05,
+                    "maxOutputTokens": 1024
+                }
+            },
+            "id": "gemini_retry",
+            "name": "Gemini Pro Retry",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1780,
+                400
+            ],
+            "credentials": {
+                "googleGeminiApi": {
+                    "id": "gemini_cred",
+                    "name": "Google Gemini"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare AI Prompt",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare AI Prompt": {
+            "main": [
+                [
+                    {
+                        "node": "Check Semantic Cache",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Semantic Cache": {
+            "main": [
+                [
+                    {
+                        "node": "Cache Hit?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Cache Hit?": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini Flash Classify",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Use Cached Result",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini Flash Classify": {
+            "main": [
+                [
+                    {
+                        "node": "Validate & Parse",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Validate & Parse": {
+            "main": [
+                [
+                    {
+                        "node": "Severity Router",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Retry Check",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Severity Router": {
+            "main": [
+                [
+                    {
+                        "node": "GPT-4 Verify",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Merge Paths",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "GPT-4 Verify": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Verification",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Merge Verification": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Paths",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Merge Paths": {
+            "main": [
+                [
+                    {
+                        "node": "Cache Result",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Cache Result": {
+            "main": [
+                [
+                    {
+                        "node": "Trigger Gatekeeper",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Use Cached Result": {
+            "main": [
+                [
+                    {
+                        "node": "Trigger Gatekeeper",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Retry Check": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini Pro Retry",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
+        },
+        "Gemini Pro Retry": {
+            "main": [
+                [
+                    {
+                        "node": "Validate & Parse",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner"
+    },
+    "staticData": null,
+    "tags": [
+        {
+            "name": "ai"
+        },
+        {
+            "name": "intelligence"
+        },
+        {
+            "name": "production"
+        }
+    ],
+    "triggerCount": 1,
+    "updatedAt": "2026-01-03T00:00:00.000Z",
+    "versionId": "1.0.0"
+}
