@@ -4,6 +4,32 @@ All agents and contributors **must** log work here.
 
 ---
 
+## 2026-01-04
+
+### Security Hardening (Gemini Audit Response)
+
+**What was done:**
+- Reviewed `AUDITgemini.md` by partner Gemini agent
+- Updated `docker-compose.yml`:
+  - Network segregation: `frontend-net` (public) + `backend-net` (internal)
+  - Log rotation: 10MB max, 5 files, compressed
+  - Added `postgres-backup` container for daily backups
+- Updated `db/schema.sql`:
+  - Added partitioning documentation and setup for high-volume
+- Created `.agent/workflows/git-push.md` for PowerShell commands
+
+**Why:**
+- Gemini audit identified security: 60/100, observability: 40/100
+- Network isolation prevents direct DB/Redis access from outside
+- Log rotation prevents disk exhaustion
+- Automated backups for disaster recovery
+
+**Next steps:**
+- Deploy to VPS and test
+- Add observability stack (Prometheus/Grafana/Loki)
+
+---
+
 ## 2026-01-03
 
 ### Repository Redesign & Production Setup

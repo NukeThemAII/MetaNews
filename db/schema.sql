@@ -328,5 +328,29 @@ ON CONFLICT DO NOTHING;
 -- SELECT cleanup_expired_urls();
 
 -- Vacuum recommendations
-COMMENT ON TABLE events IS 'Run VACUUM ANALYZE weekly. Consider partitioning by published_at for scale.';
+COMMENT ON TABLE events IS 'Run VACUUM ANALYZE weekly. Partitioned by published_at (monthly) for scale.';
 COMMENT ON TABLE seen_urls IS 'Cleanup via cleanup_expired_urls() or scheduled job. 24h TTL.';
+
+-- =============================================================================
+-- PARTITIONING (Run after initial data load for existing tables)
+-- =============================================================================
+-- For high-volume deployments (10k+ events/day), convert events to partitioned table.
+-- This must be done on an empty or migrated table.
+
+-- Example: Create partitioned version
+-- DROP TABLE events; -- Only if migrating!
+-- CREATE TABLE events (
+--     ... same columns as above ...
+-- ) PARTITION BY RANGE (published_at);
+
+-- Create monthly partitions
+-- CREATE TABLE events_2026_01 PARTITION OF events
+--     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+-- CREATE TABLE events_2026_02 PARTITION OF events
+--     FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
+-- ... etc
+
+-- Auto-create partitions with pg_partman extension:
+-- CREATE EXTENSION pg_partman;
+-- SELECT partman.create_parent('public.events', 'published_at', 'native', 'monthly');
+

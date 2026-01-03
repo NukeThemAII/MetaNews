@@ -1,9 +1,17 @@
 # =============================================================================
-# MetaNews Docker Compose
+# MetaNews Docker Compose (v2.0 - Security Hardened)
 # =============================================================================
-# Production-ready stack: n8n, PostgreSQL, Redis, Nginx
+# Production-ready stack with network segregation and log rotation
 # Usage: docker compose up -d
 # =============================================================================
+
+# Default logging configuration for all services
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+    compress: "true"
 
 services:
   # ---------------------------------------------------------------------------
@@ -13,6 +21,7 @@ services:
     image: n8nio/n8n:latest
     container_name: metanews-n8n
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "5678:5678"
     environment:
@@ -53,9 +62,10 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - metanews-network
+      - frontend-net
+      - backend-net
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -68,6 +78,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: metanews-postgres
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - POSTGRES_DB=${DB_POSTGRESDB_DATABASE}
       - POSTGRES_USER=${DB_POSTGRESDB_USER}
@@ -75,11 +86,12 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_backups:/backups
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     networks:
-      - metanews-network
+      - backend-net # Only accessible from backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_POSTGRESDB_USER} -d ${DB_POSTGRESDB_DATABASE}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_POSTGRESDB_USER} -d ${DB_POSTGRESDB_DATABASE}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -92,21 +104,45 @@ services:
     image: redis:7-alpine
     container_name: metanews-redis
     restart: unless-stopped
+    logging: *default-logging
     command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
-      - metanews-network
+      - backend-net # Only accessible from backend
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Backup - Daily pg_dump
+  # ---------------------------------------------------------------------------
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: metanews-backup
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE}
+      - POSTGRES_USER=${DB_POSTGRESDB_USER}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD}
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+      - HEALTHCHECK_PORT=8080
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend-net
 
   # ---------------------------------------------------------------------------
   # Frontend - Next.js Application
@@ -117,6 +153,7 @@ services:
       dockerfile: Dockerfile
     container_name: metanews-frontend
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "3000:3000"
     environment:
@@ -125,12 +162,11 @@ services:
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
-      - postgres
       - n8n
     networks:
-      - metanews-network
+      - frontend-net # Only frontend network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -143,6 +179,7 @@ services:
     image: nginx:alpine
     container_name: metanews-nginx
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
@@ -155,23 +192,32 @@ services:
       - frontend
       - n8n
     networks:
-      - metanews-network
+      - frontend-net # Only talks to public-facing services
 
 # -----------------------------------------------------------------------------
-# Networks
+# Networks (Segregated)
 # -----------------------------------------------------------------------------
 networks:
-  metanews-network:
+  frontend-net:
     driver: bridge
-    name: metanews-network
+    name: metanews-frontend
+    # Public-facing services: nginx, frontend, n8n webhooks
 
-# -----------------------------------------------------------------------------
-# Volumes
-# -----------------------------------------------------------------------------
+  backend-net:
+    driver: bridge
+    name: metanews-backend
+    internal: true # No external access - DB & Redis isolated
+    # Internal only: postgres, redis, n8n (for DB access)
+
+    # -----------------------------------------------------------------------------
+    # Volumes
+    # -----------------------------------------------------------------------------
 volumes:
   n8n_data:
     name: metanews-n8n-data
   postgres_data:
     name: metanews-postgres-data
+  postgres_backups:
+    name: metanews-postgres-backups
   redis_data:
     name: metanews-redis-data
