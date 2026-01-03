@@ -4,6 +4,40 @@ All agents and contributors **must** log work here.
 
 ---
 
+## 2026-01-04 (Update 2)
+
+### Frontend Review & Enhancements
+
+**What was done:**
+- Reviewed Gemini agent's frontend work (Next.js 14, shadcn/ui, Tailwind)
+- Created `components/event-card.tsx`:
+  - Severity indicators with color coding
+  - Category icons (Lucide)
+  - Confidence display
+  - Entity badges
+  - Loading skeleton
+- Created `/feed` page with mock intelligence events
+- Upgraded home page:
+  - Hero section with gradient background
+  - Features grid with hover effects
+  - Scoring system explanation
+  - Pricing cards (Free/Premium)
+- Created `lib/db.ts` for PostgreSQL queries
+- Added PWA manifest
+- Added `@types/pg` for TypeScript
+
+**Why:**
+- Original home page was basic Next.js template
+- No feed page or event components existed
+- Database connection utility needed for server components
+
+**Next steps:**
+- Connect feed page to live database
+- Add authentication (NextAuth)
+- Implement Stripe checkout
+
+---
+
 ## 2026-01-04
 
 ### Security Hardening (Gemini Audit Response)
