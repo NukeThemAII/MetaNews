@@ -53,7 +53,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Normalize RSS items\nconst item = $input.first().json;\n\n// Generate hash for deduplication (simple hash function)\nconst url = item.link || item.url || '';\nconst simpleHash = (str) => {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = ((hash << 5) - hash) + char;\n    hash = hash & hash;\n  }\n  return Math.abs(hash).toString(36);\n};\n\nreturn {\n  json: {\n    title: item.title || 'Untitled',\n    content: item.contentSnippet || item.description || item.content || '',\n    url: url,\n    published_at: item.pubDate || item.isoDate || new Date().toISOString(),\n    source: item.creator || item.author || 'Unknown',\n    source_hash: simpleHash(url),\n    raw_data: item\n  }\n};"
+        "jsCode": "// Normalize RSS items\nconst item = $input.first().json;\n\n// Generate hash for deduplication (simple hash function)\nconst url = item.link || item.url || '';\nconst simpleHash = (str) => {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = ((hash << 5) - hash) + char;\n    hash = hash & hash;\n  }\n  return Math.abs(hash).toString(36);\n};\n\nreturn {\n  json: {\n    title: item.title || 'Untitled',\n    content: item.contentSnippet || item.description || item.content || '',\n    url: url,\n    published_at: item.pubDate || item.isoDate || new Date().toISOString(),\n    source: item.creator || item.author || 'Unknown',\n    source_hash: simpleHash(url)\n  }\n};"
       },
       "id": "normalize",
       "name": "Normalize Data",
@@ -93,7 +93,7 @@
           "conditions": [
             {
               "id": "is_new",
-              "leftValue": "={{ $json.seen }}",
+              "leftValue": "={{ $json.value }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -138,28 +138,15 @@
     },
     {
       "parameters": {
-        "workflowId": "={{ \$workflow('WF-02 Intelligence Analyst').id }}",
+        "workflowId": "WF-02 Intelligence Analyst",
         "options": {}
       },
       "id": "trigger_intelligence",
-      "name": "Trigger Intelligence",
+      "name": "Trigger WF-02",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [
         1500,
-        200
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Log statistics\nconst stats = {\n  timestamp: new Date().toISOString(),\n  feeds_checked: $input.all().length,\n  items_processed: $input.all().filter(i => i.json.source_hash).length,\n  new_items: $input.all().filter(i => !i.json.seen).length\n};\n\nconsole.log('Ingestion Stats:', JSON.stringify(stats));\nreturn { json: stats };"
-      },
-      "id": "log_stats",
-      "name": "Log Statistics",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1700,
         200
       ]
     }
@@ -236,18 +223,7 @@
       "main": [
         [
           {
-            "node": "Trigger Intelligence",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Trigger Intelligence": {
-      "main": [
-        [
-          {
-            "node": "Log Statistics",
+            "node": "Trigger WF-02",
             "type": "main",
             "index": 0
           }
@@ -259,12 +235,5 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "tags": [
-    {
-      "name": "ingestion"
-    },
-    {
-      "name": "production"
-    }
-  ]
+  "tags": []
 }
