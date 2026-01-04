@@ -138,17 +138,17 @@
     },
     {
       "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "value": "WF-02 Intelligence Analyst",
-          "mode": "name"
-        },
+        "method": "POST",
+        "url": "http://earngrid.xyz:8082/webhook/intelligence-trigger",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {}
       },
-      "id": "trigger_intelligence",
-      "name": "Trigger WF-02",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1,
+      "id": "trigger_webhook",
+      "name": "Trigger WF-02 Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         1500,
         200
@@ -227,7 +227,7 @@
       "main": [
         [
           {
-            "node": "Trigger WF-02",
+            "node": "Trigger WF-02 Webhook",
             "type": "main",
             "index": 0
           }
