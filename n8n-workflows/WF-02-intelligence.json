@@ -161,9 +161,9 @@
             "parameters": {
                 "modelId": {
                     "__rl": true,
-                    "value": "models/gemini-pro-latest",
+                    "value": "models/gemini-2.5-flash",
                     "mode": "list",
-                    "cachedResultName": "models/gemini-pro-latest"
+                    "cachedResultName": "models/gemini-2.5-flash"
                 },
                 "messages": {
                     "values": [
@@ -284,9 +284,9 @@
             "parameters": {
                 "modelId": {
                     "__rl": true,
-                    "value": "models/gemini-pro-latest",
+                    "value": "models/gemini-2.5-flash",
                     "mode": "list",
-                    "cachedResultName": "models/gemini-pro-latest"
+                    "cachedResultName": "models/gemini-2.5-flash"
                 },
                 "messages": {
                     "values": [
