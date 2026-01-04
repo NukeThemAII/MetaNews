@@ -11,14 +11,16 @@
 
 | Port | Service | Public? | Required |
 |------|---------|---------|----------|
-| **80** | HTTP (Nginx) | ✅ Yes | Mandatory |
-| **443** | HTTPS (Nginx) | ✅ Yes | Mandatory |
+| **8082** | HTTP (Nginx) | ✅ Yes | Mandatory |
+| **8443** | HTTPS (Nginx) | ✅ Yes | Mandatory |
 | 5678 | n8n Admin | ❌ No* | Optional |
-| 3000 | Next.js (dev) | ❌ No | Dev only |
+| 3005 | Frontend (host) | ❌ No | Internal |
 | 5432 | PostgreSQL | ❌ No | Internal |
 | 6379 | Redis | ❌ No | Internal |
 
-> **\*Note:** n8n admin should be accessed via subdomain (e.g., `n8n.yourdomain.com`) through Nginx on port 443, NOT directly on 5678. Port 5678 should only be exposed for initial setup or if you don't have a domain yet.
+> **\*Note:** n8n admin should be accessed via subdomain (e.g., `n8n.yourdomain.com`) through Nginx on port 8443, NOT directly on 5678. Port 5678 should only be exposed for initial setup or if you don't have a domain yet.
+
+> **Port Configuration:** This deployment uses non-standard ports (8082/8443) to avoid conflicts with other services on the VPS. Nginx handles SSL termination and internally routes to standard ports (80/443) for containers.
 
 ### Configure UFW (Ubuntu Firewall)
 
@@ -29,9 +31,9 @@ sudo ufw enable
 # Allow SSH (if not already)
 sudo ufw allow 22/tcp
 
-# Allow HTTP/HTTPS
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
+# Allow HTTP/HTTPS (non-standard ports for multi-service VPS)
+sudo ufw allow 8082/tcp
+sudo ufw allow 8443/tcp
 
 # Optional: Allow n8n direct access (development only)
 # sudo ufw allow 5678/tcp
@@ -47,8 +49,8 @@ Status: active
 To                         Action      From
 --                         ------      ----
 22/tcp                     ALLOW       Anywhere
-80/tcp                     ALLOW       Anywhere
-443/tcp                    ALLOW       Anywhere
+8082/tcp                   ALLOW       Anywhere
+8443/tcp                   ALLOW       Anywhere
 ```
 
 ---
