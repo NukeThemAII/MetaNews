@@ -45,7 +45,7 @@
 
 ### Pages
 - [x] Landing page (marketing)
-- [x] Live feed UI (mock data)
+- [x] Live feed UI (connected to DB)
 - [ ] Event detail view
 - [ ] Authentication (NextAuth)
 
@@ -54,7 +54,6 @@
 - [x] Category filtering
 - [x] Severity sorting
 - [ ] Search functionality
-
 
 ---
 
@@ -102,6 +101,7 @@
 
 | Date | Task |
 |------|------|
+| 2026-01-03 | Connected Feed UI to PostgreSQL |
 | 2026-01-03 | Repository redesign, infrastructure files, n8n workflows |
 | 2026-01-03 | Technical audit (AUDIT.md) |
 | 2025-12-XX | Initial spec (GEMINI.md v1) |
