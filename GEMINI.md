@@ -79,8 +79,8 @@ graph TD
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Automation** | n8n Community Edition | Workflow orchestration |
-| **AI - Fast** | Gemini Flash Lite (latest) | Classification, initial scoring |
-| **AI - Deep** | Gemini Pro (latest) | Verification for high-severity (Free Tier) |
+| **AI - Fast** | Gemini 2.5 Flash Lite | Classification, initial scoring (10 RPM) |
+| **AI - Deep** | Gemini 2.5 Flash | Verification for high-severity (5 RPM) |
 | **AI - Fallback** | Local Ollama (Optional) | Offline backup |
 | **Cache** | Redis 7 | Deduplication, semantic cache |
 | **Database** | PostgreSQL 16 + pgvector | Events, users, embeddings |
