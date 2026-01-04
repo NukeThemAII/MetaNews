@@ -5,6 +5,54 @@
 
 ---
 
+## 0. Network Requirements
+
+### Firewall Ports (TCP)
+
+| Port | Service | Public? | Required |
+|------|---------|---------|----------|
+| **80** | HTTP (Nginx) | ✅ Yes | Mandatory |
+| **443** | HTTPS (Nginx) | ✅ Yes | Mandatory |
+| 5678 | n8n Admin | ❌ No* | Optional |
+| 3000 | Next.js (dev) | ❌ No | Dev only |
+| 5432 | PostgreSQL | ❌ No | Internal |
+| 6379 | Redis | ❌ No | Internal |
+
+> **\*Note:** n8n admin should be accessed via subdomain (e.g., `n8n.yourdomain.com`) through Nginx on port 443, NOT directly on 5678. Port 5678 should only be exposed for initial setup or if you don't have a domain yet.
+
+### Configure UFW (Ubuntu Firewall)
+
+```bash
+# Enable firewall
+sudo ufw enable
+
+# Allow SSH (if not already)
+sudo ufw allow 22/tcp
+
+# Allow HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Optional: Allow n8n direct access (development only)
+# sudo ufw allow 5678/tcp
+
+# Check status
+sudo ufw status
+```
+
+### Expected Output
+```
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW       Anywhere
+80/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
+```
+
+---
+
 ## 1. Prerequisites
 
 Ensure the following are installed on your VPS:
