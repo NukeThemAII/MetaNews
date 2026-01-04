@@ -138,7 +138,11 @@
     },
     {
       "parameters": {
-        "workflowId": "WF-02 Intelligence Analyst",
+        "workflowId": {
+          "__rl": true,
+          "value": "WF-02 Intelligence Analyst",
+          "mode": "name"
+        },
         "options": {}
       },
       "id": "trigger_intelligence",
