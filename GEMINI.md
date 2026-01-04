@@ -80,8 +80,8 @@ graph TD
 |-------|------------|---------|
 | **Automation** | n8n Community Edition | Workflow orchestration |
 | **AI - Fast** | Gemini 1.5 Flash | Classification, initial scoring |
-| **AI - Deep** | GPT-4o | Verification for high-severity |
-| **AI - Fallback** | Claude 3 Haiku | Cost-effective backup |
+| **AI - Deep** | Gemini 1.5 Pro | Verification for high-severity (Free Tier) |
+| **AI - Fallback** | Local Ollama (Optional) | Offline backup |
 | **Cache** | Redis 7 | Deduplication, semantic cache |
 | **Database** | PostgreSQL 16 + pgvector | Events, users, embeddings |
 | **Frontend** | Next.js 14 (App Router) | Web UI |
@@ -178,7 +178,7 @@ Trigger: Webhook from WF-01
 Flow: Semantic Cache Check → AI Analysis → Validation → Route
 AI Chain:
   1. Gemini Flash → Classification + Initial Score
-  2. GPT-4o → Verification (only if severity ≥ 60)
+  2. Gemini Pro → Verification (only if severity ≥ 60)
 Features:
   - Semantic caching (1h TTL)
   - Schema validation with retry
@@ -255,7 +255,7 @@ All secrets via environment variables. See `.env.example`.
 N8N_ENCRYPTION_KEY=      # openssl rand -hex 32
 DB_POSTGRESDB_PASSWORD=
 GEMINI_API_KEY=
-OPENAI_API_KEY=
+# OPENAI_API_KEY=        # Disabled for Free Tier
 TELEGRAM_BOT_TOKEN=
 STRIPE_SECRET_KEY=
 JWT_SECRET=
@@ -310,20 +310,18 @@ Cost:
 
 | Route | Model | Cost/Event | Use Case |
 |-------|-------|------------|----------|
-| Fast | Gemini Flash | ~$0.0001 | All events (classifier) |
-| Deep | GPT-4o | ~$0.003 | Severity ≥ 60 only |
+| Fast | Gemini Flash | ~$0.00 | All events (Free Tier) |
+| Deep | Gemini Pro | ~$0.00 | Severity ≥ 60 only (Free Tier) |
 | Cache Hit | None | $0 | Repeated content |
 
 ### Projected Savings
 
 ```
-Without optimization: $0.0031/event
-With smart routing:
-  - 70% discarded: $0.0001
-  - 20% cached: $0.0001
-  - 10% full analysis: $0.0031
+Without optimization: ~$0.0031/event (using GPT-4)
+With All-Gemini Free Tier:
+  - 100% savings on AI costs (within rate limits)
   
-Weighted average: ~$0.0004/event (87% savings)
+Weighted average: $0.00/event
 ```
 
 ---

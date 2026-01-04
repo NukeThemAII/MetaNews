@@ -143,31 +143,25 @@
         {
             "parameters": {
                 "resource": "chat",
-                "model": "gpt-4o",
-                "messages": {
-                    "values": [
-                        {
-                            "content": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values. If you agree, confirm. Original analysis: ' + JSON.stringify($json.analysis) + ' Original content: ' + $json.title + ' - ' + $json.content.substring(0, 500) }}"
-                        }
-                    ]
-                },
+                "model": "gemini-1.5-pro",
+                "prompt": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values. If you agree, confirm. Original analysis: ' + JSON.stringify($json.analysis) + ' Original content: ' + $json.title + ' - ' + $json.content.substring(0, 500) }}",
                 "options": {
                     "temperature": 0.1,
-                    "maxTokens": 512
+                    "maxOutputTokens": 512
                 }
             },
             "id": "gpt_verify",
-            "name": "GPT-4 Verify",
-            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "name": "Gemini Pro Verify",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
             "typeVersion": 1,
             "position": [
                 1780,
                 100
             ],
             "credentials": {
-                "openAiApi": {
-                    "id": "openai_cred",
-                    "name": "OpenAI"
+                "googleGeminiApi": {
+                    "id": "gemini_cred",
+                    "name": "Google Gemini"
                 }
             },
             "retryOnFail": true,

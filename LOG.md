@@ -1,5 +1,12 @@
 # Development Log
 
+## 2026-01-03 (Agent Session - Optimization)
+
+### Configuration Updates
+- **Free Tier Enforcement:** Modified `n8n-workflows/WF-02-intelligence.json` to replace `GPT-4o` with `Gemini 1.5 Pro` for verification. This ensures the entire AI pipeline runs on Google's free tier.
+- **Environment:** Updated `.env` to disable OpenAI/Anthropic keys and configure `CORS_ORIGINS` and `WEBHOOK_URL` for `earngrid.xyz` and the production IP.
+- **Documentation:** Updated `GEMINI.md` to reflect the "All-Gemini" architecture and cost savings ($0.00/event).
+
 ## 2026-01-03 (Agent Session - Continued)
 
 ### Frontend Development
