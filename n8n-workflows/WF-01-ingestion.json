@@ -2,14 +2,6 @@
   "name": "WF-01 Ingestion Watcher",
   "nodes": [
     {
-      "parameters": {},
-      "id": "start",
-      "name": "Start",
-      "type": "n8n-nodes-base.start",
-      "typeVersion": 1,
-      "position": [240, 300]
-    },
-    {
       "parameters": {
         "rule": {
           "interval": [
@@ -20,126 +12,72 @@
           ]
         }
       },
-      "id": "schedule",
+      "id": "cron_trigger",
       "name": "Every 2 Minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [240, 300]
+      "position": [
+        100,
+        300
+      ]
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT id, name, url, type, config FROM sources WHERE is_active = true ORDER BY last_fetch ASC NULLS FIRST LIMIT 10"
+        "jsCode": "// RSS Feed URLs\nconst feeds = [\n  // Global News\n  'https://www.aljazeera.com/xml/rss/all.xml',\n  'https://feeds.bbci.co.uk/news/world/rss.xml',\n  'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',\n  'https://www.theguardian.com/world/rss',\n  'https://rss.dw.com/xml/rss-en-all',\n  // Markets\n  'https://www.cnbc.com/id/100003114/device/rss/rss.html',\n  'https://www.marketwatch.com/rss/topstories',\n  // Crypto\n  'https://cointelegraph.com/rss',\n  'https://www.coindesk.com/arc/outboundfeeds/rss/',\n  // Tech\n  'https://techcrunch.com/feed/',\n  'https://www.theverge.com/rss/index.xml',\n  // Security/OSINT\n  'https://therecord.media/feed/',\n  'https://feeds.feedburner.com/TheHackersNews'\n];\n\nreturn feeds.map(url => ({ json: { feed_url: url } }));"
       },
-      "id": "get_sources",
-      "name": "Get Active Sources",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.3,
-      "position": [460, 300],
-      "credentials": {
-        "postgres": {
-          "id": "postgres_cred",
-          "name": "PostgreSQL"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "batchSize": 5,
-        "options": {}
-      },
-      "id": "split_batches",
-      "name": "Split In Batches",
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [680, 300]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "rss_check",
-              "leftValue": "={{ $json.type }}",
-              "rightValue": "rss",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "route_by_type",
-      "name": "Route by Source Type",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [900, 300]
-    },
-    {
-      "parameters": {
-        "url": "={{ $json.url }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "fetch_rss",
-      "name": "Fetch RSS Feed",
-      "type": "n8n-nodes-base.rssFeedRead",
-      "typeVersion": 1,
-      "position": [1120, 200],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $json.url }}",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": "={{ JSON.parse($json.config || '{}') }}"
-        },
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "fetch_api",
-      "name": "Fetch API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [1120, 400],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "jsCode": "// Normalize items from different source types\nconst items = $input.all();\nconst normalized = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Generate URL hash for deduplication\n  const url = data.link || data.url || data.id || '';\n  const crypto = require('crypto');\n  const hash = crypto.createHash('sha256').update(url).digest('hex');\n  \n  normalized.push({\n    json: {\n      source_id: data.source_id,\n      source_hash: hash,\n      title: data.title || data.headline || 'Untitled',\n      content: data.content || data.description || data.summary || '',\n      url: url,\n      published_at: data.pubDate || data.published || data.date || new Date().toISOString(),\n      raw: data\n    }\n  });\n}\n\nreturn normalized;"
-      },
-      "id": "normalize",
-      "name": "Normalize Content",
+      "id": "prepare_feeds",
+      "name": "Prepare Feed List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 300]
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.feed_url }}",
+        "options": {}
+      },
+      "id": "fetch_rss",
+      "name": "Fetch RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize RSS items\nconst item = $input.first().json;\n\n// Generate hash for deduplication\nconst url = item.link || item.url || '';\nconst crypto = require('crypto');\nconst hash = crypto.createHash('md5').update(url).digest('hex');\n\nreturn {\n  json: {\n    title: item.title || 'Untitled',\n    content: item.contentSnippet || item.description || item.content || '',\n    url: url,\n    published_at: item.pubDate || item.isoDate || new Date().toISOString(),\n    source: item.creator || item.author || 'Unknown',\n    source_hash: hash,\n    raw_data: item\n  }\n};"
+      },
+      "id": "normalize",
+      "name": "Normalize Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
     },
     {
       "parameters": {
         "operation": "get",
-        "key": "={{ 'seen:' + $json.source_hash }}"
+        "key": "={{ 'seen:' + $json.source_hash }}",
+        "options": {}
       },
-      "id": "check_redis",
-      "name": "Check Redis Cache",
+      "id": "check_dedupe",
+      "name": "Check If Seen",
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
-      "position": [1560, 300],
+      "position": [
+        900,
+        300
+      ],
       "credentials": {
         "redis": {
           "id": "redis_cred",
@@ -151,45 +89,46 @@
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
+          "options": {},
           "conditions": [
             {
-              "id": "not_seen",
-              "leftValue": "={{ $json.redis_value }}",
+              "id": "is_new",
+              "leftValue": "={{ $json.seen }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
                 "operation": "empty"
               }
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "id": "filter_new",
-      "name": "Filter New Items",
+      "id": "is_new_check",
+      "name": "Is New?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1780, 300]
+      "position": [
+        1100,
+        300
+      ]
     },
     {
       "parameters": {
         "operation": "set",
         "key": "={{ 'seen:' + $json.source_hash }}",
-        "value": "={{ $json.url }}",
+        "value": "1",
         "expire": true,
-        "ttl": 86400
+        "ttl": 604800
       },
       "id": "mark_seen",
-      "name": "Mark as Seen",
+      "name": "Mark As Seen",
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
-      "position": [2000, 200],
+      "position": [
+        1300,
+        200
+      ],
       "credentials": {
         "redis": {
           "id": "redis_cred",
@@ -199,98 +138,60 @@
     },
     {
       "parameters": {
-        "workflowId": "WF-02-intelligence",
-        "options": {}
-      },
-      "id": "trigger_analysis",
-      "name": "Trigger Intelligence Workflow",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1,
-      "position": [2220, 200]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE sources SET last_fetch = NOW(), consecutive_failures = 0, last_success = NOW() WHERE id = '{{ $json.source_id }}'"
-      },
-      "id": "update_source_success",
-      "name": "Update Source Success",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.3,
-      "position": [2440, 200],
-      "credentials": {
-        "postgres": {
-          "id": "postgres_cred",
-          "name": "PostgreSQL"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "errorMessage": "={{ $json.error }}"
-      },
-      "id": "error_trigger",
-      "name": "Error Trigger",
-      "type": "n8n-nodes-base.errorTrigger",
-      "typeVersion": 1,
-      "position": [900, 500]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE sources SET last_fetch = NOW(), consecutive_failures = consecutive_failures + 1 WHERE id = '{{ $json.source_id }}'"
-      },
-      "id": "update_source_failure",
-      "name": "Update Source Failure",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.3,
-      "position": [1120, 500],
-      "credentials": {
-        "postgres": {
-          "id": "postgres_cred",
-          "name": "PostgreSQL"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {},
-          "conditions": [
+        "method": "POST",
+        "url": "http://n8n:5678/webhook/intelligence-trigger",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
             {
-              "id": "circuit_breaker",
-              "leftValue": "={{ $json.consecutive_failures }}",
-              "rightValue": 5,
-              "operator": {
-                "type": "number",
-                "operation": "gte"
-              }
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "published_at",
+              "value": "={{ $json.published_at }}"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.source }}"
+            },
+            {
+              "name": "source_hash",
+              "value": "={{ $json.source_hash }}"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "circuit_breaker",
-      "name": "Circuit Breaker Check",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1340, 500]
+      "id": "trigger_intelligence",
+      "name": "Trigger Intelligence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1500,
+        200
+      ]
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE sources SET is_active = false WHERE id = '{{ $json.source_id }}'"
+        "jsCode": "// Log statistics\nconst stats = {\n  timestamp: new Date().toISOString(),\n  feeds_checked: $input.all().length,\n  items_processed: $input.all().filter(i => i.json.source_hash).length,\n  new_items: $input.all().filter(i => !i.json.seen).length\n};\n\nconsole.log('Ingestion Stats:', JSON.stringify(stats));\nreturn { json: stats };"
       },
-      "id": "disable_source",
-      "name": "Disable Failed Source",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.3,
-      "position": [1560, 500],
-      "credentials": {
-        "postgres": {
-          "id": "postgres_cred",
-          "name": "PostgreSQL"
-        }
-      }
+      "id": "log_stats",
+      "name": "Log Statistics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        200
+      ]
     }
   ],
   "connections": {
@@ -298,102 +199,62 @@
       "main": [
         [
           {
-            "node": "Get Active Sources",
+            "node": "Prepare Feed List",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get Active Sources": {
+    "Prepare Feed List": {
       "main": [
         [
           {
-            "node": "Split In Batches",
+            "node": "Fetch RSS",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Split In Batches": {
+    "Fetch RSS": {
       "main": [
         [
           {
-            "node": "Route by Source Type",
+            "node": "Normalize Data",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Route by Source Type": {
+    "Normalize Data": {
       "main": [
         [
           {
-            "node": "Fetch RSS Feed",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Fetch API",
+            "node": "Check If Seen",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch RSS Feed": {
+    "Check If Seen": {
       "main": [
         [
           {
-            "node": "Normalize Content",
+            "node": "Is New?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch API": {
+    "Is New?": {
       "main": [
         [
           {
-            "node": "Normalize Content",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Content": {
-      "main": [
-        [
-          {
-            "node": "Check Redis Cache",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Redis Cache": {
-      "main": [
-        [
-          {
-            "node": "Filter New Items",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Filter New Items": {
-      "main": [
-        [
-          {
-            "node": "Mark as Seen",
+            "node": "Mark As Seen",
             "type": "main",
             "index": 0
           }
@@ -401,69 +262,33 @@
         []
       ]
     },
-    "Mark as Seen": {
+    "Mark As Seen": {
       "main": [
         [
           {
-            "node": "Trigger Intelligence Workflow",
+            "node": "Trigger Intelligence",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Trigger Intelligence Workflow": {
+    "Trigger Intelligence": {
       "main": [
         [
           {
-            "node": "Update Source Success",
+            "node": "Log Statistics",
             "type": "main",
             "index": 0
           }
         ]
-      ]
-    },
-    "Error Trigger": {
-      "main": [
-        [
-          {
-            "node": "Update Source Failure",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Source Failure": {
-      "main": [
-        [
-          {
-            "node": "Circuit Breaker Check",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Circuit Breaker Check": {
-      "main": [
-        [
-          {
-            "node": "Disable Failed Source",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
       ]
     }
   },
+  "active": false,
   "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "executionOrder": "v1"
   },
-  "staticData": null,
   "tags": [
     {
       "name": "ingestion"
@@ -471,8 +296,5 @@
     {
       "name": "production"
     }
-  ],
-  "triggerCount": 1,
-  "updatedAt": "2026-01-03T00:00:00.000Z",
-  "versionId": "1.0.0"
+  ]
 }

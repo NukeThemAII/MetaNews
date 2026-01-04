@@ -1,5 +1,27 @@
 # Development Log
 
+## 2026-01-05 (Production Deployment)
+
+### n8n Workflows - Production Ready
+- **WF-01 Ingestion:** Created with 13 curated RSS feeds (news, crypto, tech, security)
+  - Al Jazeera, BBC, NYT, Guardian, DW (global news)
+  - CNBC, MarketWatch (markets)
+  - Cointelegraph, CoinDesk (crypto)
+  - TechCrunch, The Verge (tech)
+  - The Record, The Hacker News (security)
+- **WF-02 Intelligence:** Fixed for latest n8n (LangChain googleGemini nodes)
+  - Models: `gemini-2.5-flash-lite` (10 RPM), `gemini-2.5-flash` (5 RPM)
+  - Optimized for free tier rate limits
+- **Deployment:** Successfully running on Ubuntu VPS (94.16.122.69)
+  - Frontend: Port 3005
+  - n8n: Port 5678
+  - All services healthy
+
+### Repository Cleanup
+- Consolidated audit files → single `AUDIT.md`
+- Removed redundant docs (`AUDITgemini.md`, `WORK.md`, `SUMMARY.md`)
+- Cleaned up temporary scripts
+
 ## 2026-01-03 (Agent Session - Optimization)
 
 ### Configuration Updates
