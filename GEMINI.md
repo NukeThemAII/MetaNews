@@ -79,8 +79,8 @@ graph TD
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Automation** | n8n Community Edition | Workflow orchestration |
-| **AI - Fast** | Gemini 1.5 Flash | Classification, initial scoring |
-| **AI - Deep** | Gemini 1.5 Pro | Verification for high-severity (Free Tier) |
+| **AI - Fast** | Gemini Flash Lite (latest) | Classification, initial scoring |
+| **AI - Deep** | Gemini Pro (latest) | Verification for high-severity (Free Tier) |
 | **AI - Fallback** | Local Ollama (Optional) | Offline backup |
 | **Cache** | Redis 7 | Deduplication, semantic cache |
 | **Database** | PostgreSQL 16 + pgvector | Events, users, embeddings |
@@ -177,7 +177,7 @@ Features:
 Trigger: Webhook from WF-01
 Flow: Semantic Cache Check → AI Analysis → Validation → Route
 AI Chain:
-  1. Gemini Flash → Classification + Initial Score
+  1. Gemini Flash Lite → Classification + Initial Score
   2. Gemini Pro → Verification (only if severity ≥ 60)
 Features:
   - Semantic caching (1h TTL)
@@ -310,7 +310,7 @@ Cost:
 
 | Route | Model | Cost/Event | Use Case |
 |-------|-------|------------|----------|
-| Fast | Gemini Flash | ~$0.00 | All events (Free Tier) |
+| Fast | Gemini Flash Lite | ~$0.00 | All events (Free Tier) |
 | Deep | Gemini Pro | ~$0.00 | Severity ≥ 60 only (Free Tier) |
 | Cache Hit | None | $0 | Repeated content |
 

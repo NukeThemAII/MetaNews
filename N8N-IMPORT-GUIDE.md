@@ -34,9 +34,13 @@ After importing, you need to set up credentials for each workflow.
 #### A. **Google Gemini API** (for WF-02)
 1. Go to **Settings** (bottom left) → **Credentials**
 2. Click **"+ Add Credential"**
-3. Search for **"Google Gemini"**
+3. Search for **"Google** Gemini"**
 4. Enter your **API Key** from `.env` file
 5. Name it: `Google Gemini` (must match workflow reference)
+
+> **Note:** The workflows use latest Gemini models:
+> - `gemini-flash-lite-latest` (fast classification)
+> - `gemini-pro-latest` (verification for high severity)
 
 #### B. **PostgreSQL** (for WF-03, WF-04)
 1. Add new credential → **"Postgres"**

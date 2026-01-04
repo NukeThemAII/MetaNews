@@ -6,7 +6,7 @@
             "id": "webhook_trigger",
             "name": "Webhook Trigger",
             "type": "n8n-nodes-base.webhook",
-            "typeVersion": 1.1,
+            "typeVersion": 2,
             "position": [
                 240,
                 300
@@ -75,18 +75,32 @@
         },
         {
             "parameters": {
-                "resource": "chat",
-                "model": "gemini-1.5-flash",
-                "prompt": "={{ $json.prompt }}",
+                "resource": "text",
+                "operation": "message",
+                "modelId": {
+                    "__rl": true,
+                    "value": "models/gemini-flash-lite-latest",
+                    "mode": "list",
+                    "cachedResultName": "models/gemini-flash-lite-latest"
+                },
+                "prompt": {
+                    "values": [
+                        {
+                            "content": "={{ $json.prompt }}",
+                            "role": "user"
+                        }
+                    ]
+                },
                 "options": {
                     "temperature": 0.1,
                     "maxOutputTokens": 1024
-                }
+                },
+                "simplifyOutput": true
             },
             "id": "gemini_classify",
             "name": "Gemini Flash Classify",
-            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-            "typeVersion": 1,
+            "type": "n8n-nodes-base.googleGemini",
+            "typeVersion": 1.1,
             "position": [
                 1120,
                 200
@@ -103,7 +117,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Parse and validate Gemini response\nconst item = $input.first().json;\nlet analysis;\n\ntry {\n  // Extract JSON from response\n  const responseText = item.response || item.text || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  \n  if (!jsonMatch) {\n    throw new Error('No JSON found in response');\n  }\n  \n  analysis = JSON.parse(jsonMatch[0]);\n  \n  // Validate required fields\n  const required = ['category', 'severity', 'confidence', 'title', 'summary'];\n  for (const field of required) {\n    if (analysis[field] === undefined) {\n      throw new Error(`Missing required field: ${field}`);\n    }\n  }\n  \n  // Validate ranges\n  if (analysis.severity < 0 || analysis.severity > 100) {\n    throw new Error('Severity out of range 0-100');\n  }\n  if (analysis.confidence < 0 || analysis.confidence > 1) {\n    throw new Error('Confidence out of range 0-1');\n  }\n  \n  // Validate enums\n  const validCategories = ['War', 'Market', 'Disaster', 'Tech', 'Policy', 'Crypto', 'Energy', 'Other'];\n  if (!validCategories.includes(analysis.category)) {\n    analysis.category = 'Other';\n  }\n  \n  const validImpacts = ['none', 'low', 'medium', 'high'];\n  if (!validImpacts.includes(analysis.market_impact)) {\n    analysis.market_impact = 'none';\n  }\n  \n} catch (error) {\n  // Return with validation error for retry\n  return {\n    json: {\n      ...item,\n      validation_error: error.message,\n      needs_retry: true\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...item,\n    analysis: analysis,\n    needs_verification: analysis.severity >= 60\n  }\n};"
+                "jsCode": "// Parse and validate Gemini response\nconst item = $input.first().json;\nlet analysis;\n\ntry {\n  // Extract JSON from response\n  const responseText = item.message || item.text || item.response || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  \n  if (!jsonMatch) {\n    throw new Error('No JSON found in response');\n  }\n  \n  analysis = JSON.parse(jsonMatch[0]);\n  \n  // Validate required fields\n  const required = ['category', 'severity', 'confidence', 'title', 'summary'];\n  for (const field of required) {\n    if (analysis[field] === undefined) {\n      throw new Error(`Missing required field: ${field}`);\n    }\n  }\n  \n  // Validate ranges\n  if (analysis.severity < 0 || analysis.severity > 100) {\n    throw new Error('Severity out of range 0-100');\n  }\n  if (analysis.confidence < 0 || analysis.confidence > 1) {\n    throw new Error('Confidence out of range 0-1');\n  }\n  \n  // Validate enums\n  const validCategories = ['War', 'Market', 'Disaster', 'Tech', 'Policy', 'Crypto', 'Energy', 'Other'];\n  if (!validCategories.includes(analysis.category)) {\n    analysis.category = 'Other';\n  }\n  \n  const validImpacts = ['none', 'low', 'medium', 'high'];\n  if (!validImpacts.includes(analysis.market_impact)) {\n    analysis.market_impact = 'none';\n  }\n  \n} catch (error) {\n  // Return with validation error for retry\n  return {\n    json: {\n      ...item,\n      validation_error: error.message,\n      needs_retry: true\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...item,\n    analysis: analysis,\n    needs_verification: analysis.severity >= 60\n  }\n};"
             },
             "id": "validate_response",
             "name": "Validate & Parse",
@@ -142,18 +156,32 @@
         },
         {
             "parameters": {
-                "resource": "chat",
-                "model": "gemini-1.5-pro",
-                "prompt": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values. If you agree, confirm. Original analysis: ' + JSON.stringify($json.analysis) + ' Original content: ' + $json.title + ' - ' + $json.content.substring(0, 500) }}",
+                "resource": "text",
+                "operation": "message",
+                "modelId": {
+                    "__rl": true,
+                    "value": "models/gemini-pro-latest",
+                    "mode": "list",
+                    "cachedResultName": "models/gemini-pro-latest"
+                },
+                "prompt": {
+                    "values": [
+                        {
+                            "content": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values in JSON format. If you agree, confirm with JSON. Original analysis: ' + JSON.stringify($json.analysis) + ' Original content: ' + $json.title + ' - ' + $json.content.substring(0, 500) }}",
+                            "role": "user"
+                        }
+                    ]
+                },
                 "options": {
                     "temperature": 0.1,
                     "maxOutputTokens": 512
-                }
+                },
+                "simplifyOutput": true
             },
-            "id": "gpt_verify",
+            "id": "gemini_verify",
             "name": "Gemini Pro Verify",
-            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-            "typeVersion": 1,
+            "type": "n8n-nodes-base.googleGemini",
+            "typeVersion": 1.1,
             "position": [
                 1780,
                 100
@@ -169,7 +197,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Merge verification feedback\nconst item = $input.first().json;\nconst verification = item.verification_response || '';\n\n// Check if GPT adjusted anything\nconst adjustedSeverity = verification.match(/severity[:\\s]+(\\d+)/i);\nconst adjustedConfidence = verification.match(/confidence[:\\s]+([\\d.]+)/i);\n\nif (adjustedSeverity) {\n  item.analysis.severity = parseInt(adjustedSeverity[1]);\n}\nif (adjustedConfidence) {\n  item.analysis.confidence = parseFloat(adjustedConfidence[1]);\n}\n\nitem.analysis.verified = true;\n\nreturn { json: item };"
+                "jsCode": "// Merge verification feedback\nconst item = $input.first().json;\nconst verification = item.message || item.verification_response || '';\n\n// Check if Gemini adjusted anything\nconst adjustedSeverity = verification.match(/severity[:\\s]+(\\d+)/i);\nconst adjustedConfidence = verification.match(/confidence[:\\s]+([\\d.]+)/i);\n\nif (adjustedSeverity) {\n  item.analysis.severity = parseInt(adjustedSeverity[1]);\n}\nif (adjustedConfidence) {\n  item.analysis.confidence = parseFloat(adjustedConfidence[1]);\n}\n\nitem.analysis.verified = true;\n\nreturn { json: item };"
             },
             "id": "merge_verification",
             "name": "Merge Verification",
@@ -226,7 +254,7 @@
         },
         {
             "parameters": {
-                "workflowId": "WF-03-gatekeeper",
+                "workflowId": "={{ $('variables').item.json.wf03_id }}",
                 "options": {}
             },
             "id": "trigger_gatekeeper",
@@ -253,46 +281,34 @@
         },
         {
             "parameters": {
-                "conditions": {
-                    "options": {},
-                    "conditions": [
+                "resource": "text",
+                "operation": "message",
+                "modelId": {
+                    "__rl": true,
+                    "value": "models/gemini-pro-latest",
+                    "mode": "list",
+                    "cachedResultName": "models/gemini-pro-latest"
+                },
+                "prompt": {
+                    "values": [
                         {
-                            "id": "validation_failed",
-                            "leftValue": "={{ $json.needs_retry }}",
-                            "rightValue": true,
-                            "operator": {
-                                "type": "boolean",
-                                "operation": "equals"
-                            }
+                            "content": "={{ $json.prompt + '\\n\\nPREVIOUS ATTEMPT FAILED: ' + $json.validation_error + '\\n\\nPlease provide ONLY valid JSON.' }}",
+                            "role": "user"
                         }
                     ]
-                }
-            },
-            "id": "retry_check",
-            "name": "Validation Failed?",
-            "type": "n8n-nodes-base.if",
-            "typeVersion": 2,
-            "position": [
-                1560,
-                400
-            ]
-        },
-        {
-            "parameters": {
-                "resource": "chat",
-                "model": "gemini-1.5-pro",
-                "prompt": "={{ $json.prompt + '\\n\\nPREVIOUS ATTEMPT FAILED: ' + $json.validation_error + '\\n\\nPlease provide ONLY valid JSON.' }}",
+                },
                 "options": {
                     "temperature": 0.05,
                     "maxOutputTokens": 1024
-                }
+                },
+                "simplifyOutput": true
             },
             "id": "gemini_retry",
             "name": "Gemini Pro Retry",
-            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-            "typeVersion": 1,
+            "type": "n8n-nodes-base.googleGemini",
+            "typeVersion": 1.1,
             "position": [
-                1780,
+                1560,
                 400
             ],
             "credentials": {
@@ -370,23 +386,18 @@
             "main": [
                 [
                     {
-                        "node": "Severity Router",
-                        "type": "main",
-                        "index": 0
-                    },
-                    {
-                        "node": "Retry Check",
+                        "node": "High Severity?",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Severity Router": {
+        "High Severity?": {
             "main": [
                 [
                     {
-                        "node": "GPT-4 Verify",
+                        "node": "Gemini Pro Verify",
                         "type": "main",
                         "index": 0
                     }
@@ -400,7 +411,7 @@
                 ]
             ]
         },
-        "GPT-4 Verify": {
+        "Gemini Pro Verify": {
             "main": [
                 [
                     {
@@ -455,18 +466,6 @@
                 ]
             ]
         },
-        "Retry Check": {
-            "main": [
-                [
-                    {
-                        "node": "Gemini Pro Retry",
-                        "type": "main",
-                        "index": 0
-                    }
-                ],
-                []
-            ]
-        },
         "Gemini Pro Retry": {
             "main": [
                 [
@@ -480,23 +479,11 @@
         }
     },
     "settings": {
-        "executionOrder": "v1",
-        "saveManualExecutions": true,
-        "callerPolicy": "workflowsFromSameOwner"
+        "executionOrder": "v1"
     },
     "staticData": null,
-    "tags": [
-        {
-            "name": "ai"
-        },
-        {
-            "name": "intelligence"
-        },
-        {
-            "name": "production"
-        }
-    ],
+    "tags": [],
     "triggerCount": 1,
-    "updatedAt": "2026-01-03T00:00:00.000Z",
-    "versionId": "1.0.0"
+    "updatedAt": "2026-01-04T00:00:00.000Z",
+    "versionId": "2.0.0"
 }
