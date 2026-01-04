@@ -138,43 +138,13 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://n8n:5678/webhook/intelligence-trigger",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "title",
-              "value": "={{ $json.title }}"
-            },
-            {
-              "name": "content",
-              "value": "={{ $json.content }}"
-            },
-            {
-              "name": "url",
-              "value": "={{ $json.url }}"
-            },
-            {
-              "name": "published_at",
-              "value": "={{ $json.published_at }}"
-            },
-            {
-              "name": "source",
-              "value": "={{ $json.source }}"
-            },
-            {
-              "name": "source_hash",
-              "value": "={{ $json.source_hash }}"
-            }
-          ]
-        },
+        "workflowId": "={{ \$workflow('WF-02 Intelligence Analyst').id }}",
         "options": {}
       },
       "id": "trigger_intelligence",
       "name": "Trigger Intelligence",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
       "position": [
         1500,
         200
