@@ -2,7 +2,10 @@
     "name": "WF-02 Intelligence Analyst",
     "nodes": [
         {
-            "parameters": {},
+            "parameters": {
+                "path": "intelligence-trigger",
+                "options": {}
+            },
             "id": "webhook_trigger",
             "name": "Webhook Trigger",
             "type": "n8n-nodes-base.webhook",
@@ -22,21 +25,22 @@
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                460,
+                416,
                 300
             ]
         },
         {
             "parameters": {
                 "operation": "get",
-                "key": "={{ 'semantic:' + $json.source_hash.substring(0, 16) }}"
+                "key": "={{ 'semantic:' + $json.source_hash.substring(0, 16) }}",
+                "options": {}
             },
             "id": "check_semantic_cache",
             "name": "Check Semantic Cache",
             "type": "n8n-nodes-base.redis",
             "typeVersion": 1,
             "position": [
-                680,
+                640,
                 300
             ],
             "credentials": {
@@ -62,51 +66,49 @@
                             }
                         }
                     ]
-                }
+                },
+                "options": {}
             },
             "id": "cache_check",
             "name": "Cache Hit?",
             "type": "n8n-nodes-base.if",
             "typeVersion": 2,
             "position": [
-                900,
+                864,
                 300
             ]
         },
         {
             "parameters": {
-                "resource": "text",
-                "operation": "message",
                 "modelId": {
                     "__rl": true,
                     "value": "models/gemini-flash-lite-latest",
                     "mode": "list",
                     "cachedResultName": "models/gemini-flash-lite-latest"
                 },
-                "prompt": {
+                "messages": {
                     "values": [
                         {
-                            "content": "={{ $json.prompt }}",
-                            "role": "user"
+                            "content": "={{ $json.prompt }}"
                         }
                     ]
                 },
+                "builtInTools": {},
                 "options": {
-                    "temperature": 0.1,
-                    "maxOutputTokens": 1024
-                },
-                "simplifyOutput": true
+                    "maxOutputTokens": 1024,
+                    "temperature": 0.1
+                }
             },
-            "id": "gemini_classify",
-            "name": "Gemini Flash Classify",
-            "type": "n8n-nodes-base.googleGemini",
+            "type": "@n8n/n8n-nodes-langchain.googleGemini",
             "typeVersion": 1.1,
             "position": [
-                1120,
+                1088,
                 200
             ],
+            "id": "gemini_classify",
+            "name": "Gemini Flash Classify",
             "credentials": {
-                "googleGeminiApi": {
+                "googlePalmApi": {
                     "id": "gemini_cred",
                     "name": "Google Gemini"
                 }
@@ -117,14 +119,14 @@
         },
         {
             "parameters": {
-                "jsCode": "// Parse and validate Gemini response\nconst item = $input.first().json;\nlet analysis;\n\ntry {\n  // Extract JSON from response\n  const responseText = item.message || item.text || item.response || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  \n  if (!jsonMatch) {\n    throw new Error('No JSON found in response');\n  }\n  \n  analysis = JSON.parse(jsonMatch[0]);\n  \n  // Validate required fields\n  const required = ['category', 'severity', 'confidence', 'title', 'summary'];\n  for (const field of required) {\n    if (analysis[field] === undefined) {\n      throw new Error(`Missing required field: ${field}`);\n    }\n  }\n  \n  // Validate ranges\n  if (analysis.severity < 0 || analysis.severity > 100) {\n    throw new Error('Severity out of range 0-100');\n  }\n  if (analysis.confidence < 0 || analysis.confidence > 1) {\n    throw new Error('Confidence out of range 0-1');\n  }\n  \n  // Validate enums\n  const validCategories = ['War', 'Market', 'Disaster', 'Tech', 'Policy', 'Crypto', 'Energy', 'Other'];\n  if (!validCategories.includes(analysis.category)) {\n    analysis.category = 'Other';\n  }\n  \n  const validImpacts = ['none', 'low', 'medium', 'high'];\n  if (!validImpacts.includes(analysis.market_impact)) {\n    analysis.market_impact = 'none';\n  }\n  \n} catch (error) {\n  // Return with validation error for retry\n  return {\n    json: {\n      ...item,\n      validation_error: error.message,\n      needs_retry: true\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...item,\n    analysis: analysis,\n    needs_verification: analysis.severity >= 60\n  }\n};"
+                "jsCode": "// Parse and validate Gemini response\nconst item = $input.first().json;\nlet analysis;\n\ntry {\n  // Extract JSON from response\n  const responseText = item.message || item.text || item.response || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  \n  if (!jsonMatch) {\n    throw new Error('No JSON found in response');\n  }\n  \n  analysis = JSON.parse(jsonMatch[0]);\n  \n  // Validate required fields\n  const required = ['category', 'severity', 'confidence', 'title', 'summary'];\n  for (const field of required) {\n    if (analysis[field] === undefined) {\n      throw new Error(`Missing required field: ${field}`);\n    }\n  }\n  \n  // Validate ranges\n  if (analysis.severity < 0 || analysis.severity > 100) {\n    throw new Error('Severity out of range 0-100');\n  }\n  if (analysis.confidence < 0 || analysis.confidence > 1) {\n    throw new Error('Confidence out of range 0-1');\n  }\n  \n  // Validate enums\n  const validCategories = ['War', 'Market', 'Disaster', 'Tech', 'Policy', 'Crypto', 'Energy', 'Other'];\n  if (!validCategories.includes(analysis.category)) {\n    analysis.category = 'Other';\n  }\n  \n  const validImpacts = ['none', 'low', 'medium', 'high'];\n  if (!validImpacts.includes(analysis.market_impact)) {\n    analysis.market_impact = 'none';\n  }\n  \n} catch (error) {\n  return {\n    json: {\n      ...item,\n      validation_error: error.message,\n      needs_retry: true\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...item,\n    analysis: analysis,\n    needs_verification: analysis.severity >= 60\n  }\n};"
             },
             "id": "validate_response",
             "name": "Validate & Parse",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                1340,
+                1312,
                 200
             ]
         },
@@ -143,51 +145,49 @@
                             }
                         }
                     ]
-                }
+                },
+                "options": {}
             },
             "id": "severity_router",
             "name": "High Severity?",
             "type": "n8n-nodes-base.if",
             "typeVersion": 2,
             "position": [
-                1560,
+                1536,
                 200
             ]
         },
         {
             "parameters": {
-                "resource": "text",
-                "operation": "message",
                 "modelId": {
                     "__rl": true,
                     "value": "models/gemini-pro-latest",
                     "mode": "list",
                     "cachedResultName": "models/gemini-pro-latest"
                 },
-                "prompt": {
+                "messages": {
                     "values": [
                         {
-                            "content": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values in JSON format. If you agree, confirm with JSON. Original analysis: ' + JSON.stringify($json.analysis) + ' Original content: ' + $json.title + ' - ' + $json.content.substring(0, 500) }}",
-                            "role": "user"
+                            "content": "={{ 'Verify this intelligence analysis. If you disagree with severity/confidence, provide corrected values in JSON. Original: ' + JSON.stringify($json.analysis) + ' Content: ' + $json.title }}"
                         }
                     ]
                 },
+                "builtInTools": {},
                 "options": {
-                    "temperature": 0.1,
-                    "maxOutputTokens": 512
-                },
-                "simplifyOutput": true
+                    "maxOutputTokens": 512,
+                    "temperature": 0.1
+                }
             },
-            "id": "gemini_verify",
-            "name": "Gemini Pro Verify",
-            "type": "n8n-nodes-base.googleGemini",
+            "type": "@n8n/n8n-nodes-langchain.googleGemini",
             "typeVersion": 1.1,
             "position": [
-                1780,
+                1760,
                 100
             ],
+            "id": "gemini_verify",
+            "name": "Gemini Pro Verify",
             "credentials": {
-                "googleGeminiApi": {
+                "googlePalmApi": {
                     "id": "gemini_cred",
                     "name": "Google Gemini"
                 }
@@ -204,7 +204,7 @@
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                2000,
+                1984,
                 100
             ]
         },
@@ -218,14 +218,15 @@
                             "field2": "source_hash"
                         }
                     ]
-                }
+                },
+                "options": {}
             },
             "id": "merge_paths",
             "name": "Merge Paths",
             "type": "n8n-nodes-base.merge",
             "typeVersion": 2.1,
             "position": [
-                2220,
+                2208,
                 200
             ]
         },
@@ -242,7 +243,7 @@
             "type": "n8n-nodes-base.redis",
             "typeVersion": 1,
             "position": [
-                2440,
+                2432,
                 200
             ],
             "credentials": {
@@ -262,7 +263,7 @@
             "type": "n8n-nodes-base.executeWorkflow",
             "typeVersion": 1,
             "position": [
-                2660,
+                2656,
                 200
             ]
         },
@@ -275,44 +276,41 @@
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                1120,
+                1088,
                 400
             ]
         },
         {
             "parameters": {
-                "resource": "text",
-                "operation": "message",
                 "modelId": {
                     "__rl": true,
                     "value": "models/gemini-pro-latest",
                     "mode": "list",
                     "cachedResultName": "models/gemini-pro-latest"
                 },
-                "prompt": {
+                "messages": {
                     "values": [
                         {
-                            "content": "={{ $json.prompt + '\\n\\nPREVIOUS ATTEMPT FAILED: ' + $json.validation_error + '\\n\\nPlease provide ONLY valid JSON.' }}",
-                            "role": "user"
+                            "content": "={{ $json.prompt + '\\n\\nPREVIOUS FAILED: ' + $json.validation_error + '\\n\\nValid JSON only.' }}"
                         }
                     ]
                 },
+                "builtInTools": {},
                 "options": {
-                    "temperature": 0.05,
-                    "maxOutputTokens": 1024
-                },
-                "simplifyOutput": true
+                    "maxOutputTokens": 1024,
+                    "temperature": 0.05
+                }
             },
-            "id": "gemini_retry",
-            "name": "Gemini Pro Retry",
-            "type": "n8n-nodes-base.googleGemini",
+            "type": "@n8n/n8n-nodes-langchain.googleGemini",
             "typeVersion": 1.1,
             "position": [
-                1560,
+                1536,
                 400
             ],
+            "id": "gemini_retry",
+            "name": "Gemini Pro Retry",
             "credentials": {
-                "googleGeminiApi": {
+                "googlePalmApi": {
                     "id": "gemini_cred",
                     "name": "Google Gemini"
                 }
@@ -478,12 +476,9 @@
             ]
         }
     },
+    "active": false,
     "settings": {
         "executionOrder": "v1"
     },
-    "staticData": null,
-    "tags": [],
-    "triggerCount": 1,
-    "updatedAt": "2026-01-04T00:00:00.000Z",
-    "versionId": "2.0.0"
+    "tags": []
 }
