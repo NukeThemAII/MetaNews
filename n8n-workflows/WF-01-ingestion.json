@@ -53,7 +53,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Normalize RSS items\nconst item = $input.first().json;\n\n// Generate hash for deduplication\nconst url = item.link || item.url || '';\nconst crypto = require('crypto');\nconst hash = crypto.createHash('md5').update(url).digest('hex');\n\nreturn {\n  json: {\n    title: item.title || 'Untitled',\n    content: item.contentSnippet || item.description || item.content || '',\n    url: url,\n    published_at: item.pubDate || item.isoDate || new Date().toISOString(),\n    source: item.creator || item.author || 'Unknown',\n    source_hash: hash,\n    raw_data: item\n  }\n};"
+        "jsCode": "// Normalize RSS items\nconst item = $input.first().json;\n\n// Generate hash for deduplication (simple hash function)\nconst url = item.link || item.url || '';\nconst simpleHash = (str) => {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = ((hash << 5) - hash) + char;\n    hash = hash & hash;\n  }\n  return Math.abs(hash).toString(36);\n};\n\nreturn {\n  json: {\n    title: item.title || 'Untitled',\n    content: item.contentSnippet || item.description || item.content || '',\n    url: url,\n    published_at: item.pubDate || item.isoDate || new Date().toISOString(),\n    source: item.creator || item.author || 'Unknown',\n    source_hash: simpleHash(url),\n    raw_data: item\n  }\n};"
       },
       "id": "normalize",
       "name": "Normalize Data",
