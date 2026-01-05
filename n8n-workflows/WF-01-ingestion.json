@@ -51,9 +51,9 @@
       "maxTries": 2,
       "continueOnFail": true
     },
-    {
+        {
       "parameters": {
-        "jsCode": "// Normalize RSS items\nconst item = $input.first().json;\n\n// Generate hash for deduplication (simple hash function)\nconst url = item.link || item.url || '';\nconst simpleHash = (str) => {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = ((hash << 5) - hash) + char;\n    hash = hash & hash;\n  }\n  return Math.abs(hash).toString(36);\n};\n\nreturn {\n  json: {\n    title: item.title || 'Untitled',\n    content: item.contentSnippet || item.description || item.content || '',\n    url: url,\n    published_at: item.pubDate || item.isoDate || new Date().toISOString(),\n    source: item.creator || item.author || 'Unknown',\n    source_hash: simpleHash(url)\n  }\n};"
+        "jsCode": "// Normalize RSS items\nconst crypto = require('crypto');\nconst items = $input.all();\n\nconst toIso = (value) => {\n  const date = value ? new Date(value) : new Date();\n  return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();\n};\n\nreturn items.map(({ json: item }) => {\n  const url = item.link || item.url || item.guid || '';\n  const hashInput = url || item.title || item.contentSnippet || item.description || '';\n  const sourceHash = crypto.createHash('sha256').update(hashInput).digest('hex');\n\n  return {\n    json: {\n      title: item.title || 'Untitled',\n      content: item.contentSnippet || item.description || item.content || '',\n      url: url,\n      published_at: toIso(item.pubDate || item.isoDate || item.published_at),\n      source: item.creator || item.author || 'Unknown',\n      source_hash: sourceHash\n    }\n  };\n});"
       },
       "id": "normalize",
       "name": "Normalize Data",
@@ -139,10 +139,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://earngrid.xyz:8082/webhook/intelligence-trigger",
+        "url": "={{ ($env.N8N_INTERNAL_URL || 'http://n8n:5678') + '/webhook/intelligence-trigger' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}",
+        "jsonBody": "={{ $json }}",
         "options": {}
       },
       "id": "trigger_webhook",

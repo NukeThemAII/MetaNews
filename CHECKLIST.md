@@ -18,6 +18,7 @@ Copy `.env.example` → `.env` and fill in:
 - `GEMINI_API_KEY` (for AI classification)
 - `OPENAI_API_KEY` (for verification)
 - `TELEGRAM_BOT_TOKEN` (for alerts)
+- `TELEGRAM_PREMIUM_CHANNEL` / `TELEGRAM_FREE_CHANNEL` (channel IDs)
 - `N8N_ENCRYPTION_KEY` (generate: `openssl rand -hex 32`)
 - `N8N_BASIC_AUTH_PASSWORD` (secure password)
 - `DB_POSTGRESDB_PASSWORD` (secure password)

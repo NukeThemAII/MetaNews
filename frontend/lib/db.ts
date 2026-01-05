@@ -3,7 +3,9 @@ import { Pool } from "pg";
 // Database connection pool
 // Uses DATABASE_URL from environment or constructs from individual vars
 const connectionString = process.env.DATABASE_URL ||
-    `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
+    `postgresql://${process.env.DB_POSTGRESDB_USER || process.env.DB_USER}:${process.env.DB_POSTGRESDB_PASSWORD || process.env.DB_PASSWORD}` +
+    `@${process.env.DB_POSTGRESDB_HOST || process.env.DB_HOST}:${process.env.DB_POSTGRESDB_PORT || process.env.DB_PORT}` +
+    `/${process.env.DB_POSTGRESDB_DATABASE || process.env.DB_NAME}`;
 
 const pool = new Pool({
     connectionString,
@@ -48,6 +50,30 @@ export interface DbEvent {
     created_at: Date;
 }
 
+const normalizeJsonArray = (value: unknown): string[] => {
+    if (Array.isArray(value)) {
+        return value.map((entry) => String(entry)).filter(Boolean);
+    }
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+                return parsed.map((entry) => String(entry)).filter(Boolean);
+            }
+        } catch (error) {
+            return value ? [value] : [];
+        }
+        return value ? [value] : [];
+    }
+    return [];
+};
+
+const normalizeEvent = (event: DbEvent): DbEvent => ({
+    ...event,
+    summary: normalizeJsonArray(event.summary),
+    entities: normalizeJsonArray(event.entities),
+});
+
 // Get events with filtering
 export async function getEvents(options: {
     category?: string;
@@ -67,6 +93,8 @@ export async function getEvents(options: {
         paramIndex++;
     }
 
+    whereClause += " AND ((promoted_at IS NOT NULL AND promoted_at <= NOW()) OR (promoted_at IS NULL AND published_at <= NOW() - INTERVAL '30 minutes'))";
+
     params.push(limit, offset);
 
     const sql = `
@@ -81,7 +109,8 @@ export async function getEvents(options: {
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
   `;
 
-    return query<DbEvent>(sql, params);
+    const events = await query<DbEvent>(sql, params);
+    return events.map(normalizeEvent);
 }
 
 // Get single event by ID
@@ -90,7 +119,7 @@ export async function getEventById(id: string): Promise<DbEvent | null> {
         "SELECT * FROM events WHERE id = $1",
         [id]
     );
-    return events[0] || null;
+    return events[0] ? normalizeEvent(events[0]) : null;
 }
 
 // Get event count for pagination
@@ -107,6 +136,8 @@ export async function getEventCount(options: {
         whereClause += " AND category = $2";
         params.push(category);
     }
+
+    whereClause += " AND ((promoted_at IS NOT NULL AND promoted_at <= NOW()) OR (promoted_at IS NULL AND published_at <= NOW() - INTERVAL '30 minutes'))";
 
     const result = await query<{ count: string }>(
         `SELECT COUNT(*) FROM events ${whereClause}`,

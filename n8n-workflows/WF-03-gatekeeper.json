@@ -2,7 +2,10 @@
     "name": "WF-03 Gatekeeper Filter",
     "nodes": [
         {
-            "parameters": {},
+            "parameters": {
+                "path": "gatekeeper-trigger",
+                "options": {}
+            },
             "id": "webhook_trigger",
             "name": "Webhook Trigger",
             "type": "n8n-nodes-base.webhook",
@@ -95,7 +98,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Format for database insertion\nconst item = $input.first().json;\nconst analysis = item.analysis;\n\nreturn {\n  json: {\n    source_id: item.source_id || null,\n    source_hash: item.source_hash,\n    title: analysis.title,\n    alert: analysis.alert || null,\n    summary: JSON.stringify(analysis.summary),\n    raw_content: item.content,\n    category: analysis.category,\n    severity: analysis.severity,\n    confidence: analysis.confidence,\n    market_impact: analysis.market_impact || 'none',\n    entities: JSON.stringify(analysis.entities || []),\n    geo: analysis.geo ? JSON.stringify(analysis.geo) : null,\n    source_url: item.url,\n    published_at: item.published_at,\n    is_critical: analysis.severity >= 80,\n    is_verified: analysis.verified || false\n  }\n};"
+                "jsCode": "// Format for database insertion\nconst item = $input.first().json;\nconst analysis = item.analysis;\nconst promotedAt = new Date().toISOString();\n\nreturn {\n  json: {\n    source_id: item.source_id || null,\n    source_hash: item.source_hash,\n    title: analysis.title,\n    alert: analysis.alert || null,\n    summary: JSON.stringify(analysis.summary),\n    raw_content: item.content,\n    category: analysis.category,\n    severity: analysis.severity,\n    confidence: analysis.confidence,\n    market_impact: analysis.market_impact || 'none',\n    entities: JSON.stringify(analysis.entities || []),\n    geo: analysis.geo ? JSON.stringify(analysis.geo) : null,\n    source_url: item.url,\n    published_at: item.published_at,\n    promoted_at: promotedAt\n  }\n};"
             },
             "id": "format_critical",
             "name": "Format Critical Event",
@@ -108,7 +111,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Format for database insertion\nconst item = $input.first().json;\nconst analysis = item.analysis;\n\nreturn {\n  json: {\n    source_id: item.source_id || null,\n    source_hash: item.source_hash,\n    title: analysis.title,\n    alert: analysis.alert || null,\n    summary: JSON.stringify(analysis.summary),\n    raw_content: item.content,\n    category: analysis.category,\n    severity: analysis.severity,\n    confidence: analysis.confidence,\n    market_impact: analysis.market_impact || 'none',\n    entities: JSON.stringify(analysis.entities || []),\n    geo: analysis.geo ? JSON.stringify(analysis.geo) : null,\n    source_url: item.url,\n    published_at: item.published_at,\n    is_critical: false,\n    delay_minutes: 30 + Math.floor(Math.random() * 30)\n  }\n};"
+                "jsCode": "// Format for database insertion\nconst item = $input.first().json;\nconst analysis = item.analysis;\nconst delayMinutes = 30 + Math.floor(Math.random() * 30);\nconst promotedAt = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();\n\nreturn {\n  json: {\n    source_id: item.source_id || null,\n    source_hash: item.source_hash,\n    title: analysis.title,\n    alert: analysis.alert || null,\n    summary: JSON.stringify(analysis.summary),\n    raw_content: item.content,\n    category: analysis.category,\n    severity: analysis.severity,\n    confidence: analysis.confidence,\n    market_impact: analysis.market_impact || 'none',\n    entities: JSON.stringify(analysis.entities || []),\n    geo: analysis.geo ? JSON.stringify(analysis.geo) : null,\n    source_url: item.url,\n    published_at: item.published_at,\n    promoted_at: promotedAt\n  }\n};"
             },
             "id": "format_regular",
             "name": "Format Regular Event",
@@ -124,8 +127,8 @@
                 "operation": "insert",
                 "schema": "public",
                 "table": "events",
-                "columns": "source_id, source_hash, title, alert, summary, raw_content, category, severity, confidence, market_impact, entities, geo, source_url, published_at",
-                "returnFields": "id"
+                "columns": "source_id, source_hash, title, alert, summary, raw_content, category, severity, confidence, market_impact, entities, geo, source_url, published_at, promoted_at",
+                "returnFields": "id, title, alert, summary, category, severity, confidence, market_impact, entities, source_url, published_at, promoted_at"
             },
             "id": "insert_critical",
             "name": "Insert Critical Event",
@@ -147,8 +150,8 @@
                 "operation": "insert",
                 "schema": "public",
                 "table": "events",
-                "columns": "source_id, source_hash, title, alert, summary, raw_content, category, severity, confidence, market_impact, entities, geo, source_url, published_at",
-                "returnFields": "id"
+                "columns": "source_id, source_hash, title, alert, summary, raw_content, category, severity, confidence, market_impact, entities, geo, source_url, published_at, promoted_at",
+                "returnFields": "id, title, alert, summary, category, severity, confidence, market_impact, entities, source_url, published_at, promoted_at"
             },
             "id": "insert_regular",
             "name": "Insert Regular Event",
@@ -167,15 +170,17 @@
         },
         {
             "parameters": {
-                "workflowId": "WF-04-distribution",
-                "options": {
-                    "waitForSubWorkflow": false
-                }
+                "method": "POST",
+                "url": "={{ ($env.N8N_INTERNAL_URL || 'http://n8n:5678') + '/webhook/distribution-trigger' }}",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ $json }}",
+                "options": {}
             },
             "id": "trigger_instant_alert",
             "name": "Trigger Instant Alert",
-            "type": "n8n-nodes-base.executeWorkflow",
-            "typeVersion": 1,
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
             "position": [
                 1340,
                 200
@@ -183,27 +188,7 @@
         },
         {
             "parameters": {
-                "operation": "executeQuery",
-                "query": "UPDATE events SET promoted_at = NOW() WHERE id = '{{ $json.id }}'"
-            },
-            "id": "mark_promoted",
-            "name": "Mark Promoted",
-            "type": "n8n-nodes-base.postgres",
-            "typeVersion": 2.3,
-            "position": [
-                1560,
-                200
-            ],
-            "credentials": {
-                "postgres": {
-                    "id": "postgres_cred",
-                    "name": "PostgreSQL"
-                }
-            }
-        },
-        {
-            "parameters": {
-                "amount": "={{ $json.delay_minutes }}",
+                "amount": "={{ Math.max(0, Math.ceil((new Date($json.promoted_at || Date.now()).getTime() - Date.now()) / 60000)) }}",
                 "unit": "minutes"
             },
             "id": "delay_free",
@@ -217,15 +202,17 @@
         },
         {
             "parameters": {
-                "workflowId": "WF-04-distribution",
-                "options": {
-                    "waitForSubWorkflow": false
-                }
+                "method": "POST",
+                "url": "={{ ($env.N8N_INTERNAL_URL || 'http://n8n:5678') + '/webhook/distribution-trigger' }}",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ $json }}",
+                "options": {}
             },
             "id": "trigger_delayed_alert",
             "name": "Trigger Delayed Alert",
-            "type": "n8n-nodes-base.executeWorkflow",
-            "typeVersion": 1,
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
             "position": [
                 1560,
                 400
@@ -307,17 +294,6 @@
                 [
                     {
                         "node": "Trigger Instant Alert",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "Trigger Instant Alert": {
-            "main": [
-                [
-                    {
-                        "node": "Mark Promoted",
                         "type": "main",
                         "index": 0
                     }

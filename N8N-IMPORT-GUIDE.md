@@ -71,6 +71,10 @@ After importing, you need to set up credentials for each workflow.
 2. Add credential → **"Telegram"**
 3. Enter bot token
 4. Name it: `Telegram`
+5. Set environment variables in `.env`:
+   - `TELEGRAM_PREMIUM_CHANNEL` (premium channel ID)
+   - `TELEGRAM_FREE_CHANNEL` (free channel ID)
+   - Optional legacy fallback: `TELEGRAM_CHAT_ID`
 
 ---
 
@@ -132,6 +136,7 @@ After workflows run successfully:
 - Check that WF-01 is **Active** (toggle in top right)
 - Verify cron schedule is set (every 2 minutes)
 - Check n8n logs: `docker compose logs n8n`
+- Ensure `N8N_INTERNAL_URL=http://n8n:5678` is set in `.env` so workflows can call each other
 
 ### No events in database
 - Check WF-02 credentials (Gemini API key valid?)

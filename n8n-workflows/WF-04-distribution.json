@@ -2,7 +2,10 @@
     "name": "WF-04 Distribution",
     "nodes": [
         {
-            "parameters": {},
+            "parameters": {
+                "path": "distribution-trigger",
+                "options": {}
+            },
             "id": "webhook_trigger",
             "name": "Webhook Trigger",
             "type": "n8n-nodes-base.webhook",
@@ -15,7 +18,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Format alert message for distribution\nconst event = $input.first().json;\n\nconst severityEmoji = event.severity >= 80 ? '🚨' : event.severity >= 60 ? '⚠️' : 'ℹ️';\nconst categoryEmoji = {\n  'War': '⚔️',\n  'Market': '📈',\n  'Disaster': '🌊',\n  'Tech': '💻',\n  'Policy': '🏛️',\n  'Crypto': '₿',\n  'Energy': '⚡',\n  'Other': '📰'\n}[event.category] || '📰';\n\nconst impactBadge = {\n  'high': '🔴 HIGH IMPACT',\n  'medium': '🟡 MEDIUM IMPACT',\n  'low': '🟢 LOW IMPACT',\n  'none': ''\n}[event.market_impact] || '';\n\nconst telegramMessage = `\n${severityEmoji} ${categoryEmoji} <b>${event.title}</b>\n\n${event.alert || ''}\n\n${impactBadge ? impactBadge + '\\n\\n' : ''}📊 Severity: ${event.severity}/100 | Confidence: ${Math.round(event.confidence * 100)}%\n\n<b>Summary:</b>\n${Array.isArray(event.summary) ? event.summary.map((s, i) => `${i + 1}. ${s}`).join('\\n') : event.summary}\n\n${event.entities?.length ? '🏷️ ' + (Array.isArray(event.entities) ? event.entities.slice(0, 5).join(' | ') : event.entities) : ''}\n\n🔗 <a href=\"${event.source_url || 'https://metanews.app'}\">Read more</a>\n`;\n\nreturn {\n  json: {\n    ...event,\n    telegram_message: telegramMessage.trim(),\n    is_premium: event.severity >= 80\n  }\n};"
+                "jsCode": "// Format alert message for distribution\nconst event = $input.first().json;\n\nconst escapeHtml = (value) => String(value || '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\n\nconst normalizeArray = (value) => {\n  if (Array.isArray(value)) return value;\n  if (typeof value === 'string') {\n    try {\n      const parsed = JSON.parse(value);\n      if (Array.isArray(parsed)) return parsed;\n    } catch (error) {\n      // Fall through\n    }\n  }\n  if (value === null || value === undefined || value === '') return [];\n  return [String(value)];\n};\n\nconst summary = normalizeArray(event.summary).slice(0, 3).map(escapeHtml);\nconst entities = normalizeArray(event.entities).slice(0, 5).map(escapeHtml);\n\nconst severityEmoji = event.severity >= 80 ? '🚨' : event.severity >= 60 ? '⚠️' : 'ℹ️';\nconst categoryEmoji = {\n  'War': '⚔️',\n  'Market': '📈',\n  'Disaster': '🌊',\n  'Tech': '💻',\n  'Policy': '🏛️',\n  'Crypto': '₿',\n  'Energy': '⚡',\n  'Other': '📰'\n}[event.category] || '📰';\n\nconst impactBadge = {\n  'high': '🔴 HIGH IMPACT',\n  'medium': '🟡 MEDIUM IMPACT',\n  'low': '🟢 LOW IMPACT',\n  'none': ''\n}[event.market_impact] || '';\n\nconst telegramMessage = `\n${severityEmoji} ${categoryEmoji} <b>${escapeHtml(event.title)}</b>\n\n${event.alert ? escapeHtml(event.alert) : ''}\n\n${impactBadge ? impactBadge + '\\n\\n' : ''}📊 Severity: ${event.severity}/100 | Confidence: ${Math.round(event.confidence * 100)}%\n\n<b>Summary:</b>\n${summary.length ? summary.map((s, i) => `${i + 1}. ${s}`).join('\\n') : 'No summary available'}\n\n${entities.length ? '🏷️ ' + entities.join(' | ') : ''}\n\n🔗 <a href=\"${event.source_url || 'https://metanews.app'}\">Read more</a>\n`;\n\nreturn {\n  json: {\n    ...event,\n    event_id: event.id || event.event_id,\n    telegram_message: telegramMessage.trim(),\n    is_premium: event.severity >= 80\n  }\n};"
             },
             "id": "format_message",
             "name": "Format Alert Message",
@@ -55,7 +58,7 @@
         {
             "parameters": {
                 "operation": "sendMessage",
-                "chatId": "={{ $env.TELEGRAM_PREMIUM_CHANNEL }}",
+                "chatId": "={{ $env.TELEGRAM_PREMIUM_CHANNEL || $env.TELEGRAM_CHAT_ID }}",
                 "text": "={{ $json.telegram_message }}",
                 "additionalFields": {
                     "parse_mode": "HTML",
@@ -82,8 +85,21 @@
         },
         {
             "parameters": {
+                "jsCode": "// Build log record for premium channel\nconst event = $('Format Alert Message').first().json;\n\nreturn {\n  json: {\n    event_id: event.event_id || event.id,\n    user_id: null,\n    channel: 'telegram_premium',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  }\n};"
+            },
+            "id": "prepare_premium_log",
+            "name": "Prepare Premium Log",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1040,
+                200
+            ]
+        },
+        {
+            "parameters": {
                 "operation": "sendMessage",
-                "chatId": "={{ $env.TELEGRAM_FREE_CHANNEL }}",
+                "chatId": "={{ $env.TELEGRAM_FREE_CHANNEL || $env.TELEGRAM_CHAT_ID }}",
                 "text": "={{ $json.telegram_message }}",
                 "additionalFields": {
                     "parse_mode": "HTML",
@@ -107,6 +123,19 @@
             "retryOnFail": true,
             "maxTries": 3,
             "waitBetweenTries": 2000
+        },
+        {
+            "parameters": {
+                "jsCode": "// Build log record for free channel\nconst event = $('Format Alert Message').first().json;\n\nreturn {\n  json: {\n    event_id: event.event_id || event.id,\n    user_id: null,\n    channel: 'telegram_free',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  }\n};"
+            },
+            "id": "prepare_free_log",
+            "name": "Prepare Free Log",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1040,
+                400
+            ]
         },
         {
             "parameters": {
@@ -190,7 +219,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Check if user preferences match event category\nconst user = $input.first().json;\nconst event = $('Format Alert Message').first().json;\n\nconst userCategories = user.preferences?.categories || [];\nconst minSeverity = user.preferences?.min_severity || 40;\n\nconst shouldNotify = \n  (userCategories.length === 0 || userCategories.includes(event.category)) &&\n  event.severity >= minSeverity;\n\nreturn {\n  json: {\n    ...user,\n    event_id: event.id,\n    should_notify: shouldNotify,\n    message: event.telegram_message\n  }\n};"
+                "jsCode": "// Check if user preferences match event category\nconst user = $input.first().json;\nconst event = $('Format Alert Message').first().json;\n\nconst userCategories = user.preferences?.categories || [];\nconst minSeverity = user.preferences?.min_severity || 40;\n\nconst shouldNotify = \n  (userCategories.length === 0 || userCategories.includes(event.category)) &&\n  event.severity >= minSeverity;\n\nreturn {\n  json: {\n    ...user,\n    event_id: event.event_id || event.id,\n    should_notify: shouldNotify,\n    message: event.telegram_message\n  }\n};"
             },
             "id": "filter_preferences",
             "name": "Filter by Preferences",
@@ -254,6 +283,19 @@
         },
         {
             "parameters": {
+                "jsCode": "// Build log record for DM alerts\nconst event = $('Format Alert Message').first().json;\nconst user = $('Filter by Preferences').item.json;\n\nreturn {\n  json: {\n    event_id: event.event_id || event.id,\n    user_id: user.id || null,\n    channel: 'telegram_dm',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  }\n};"
+            },
+            "id": "prepare_dm_log",
+            "name": "Prepare DM Log",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                2440,
+                200
+            ]
+        },
+        {
+            "parameters": {
                 "operation": "insert",
                 "schema": "public",
                 "table": "alerts",
@@ -264,7 +306,7 @@
             "type": "n8n-nodes-base.postgres",
             "typeVersion": 2.3,
             "position": [
-                2440,
+                2660,
                 200
             ],
             "credentials": {
@@ -368,6 +410,17 @@
             "main": [
                 [
                     {
+                        "node": "Prepare Premium Log",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Premium Log": {
+            "main": [
+                [
+                    {
                         "node": "Log Premium Alert",
                         "type": "main",
                         "index": 0
@@ -376,6 +429,17 @@
             ]
         },
         "Send to Free Channel": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Free Log",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Free Log": {
             "main": [
                 [
                     {
@@ -443,6 +507,17 @@
             ]
         },
         "Send DM": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare DM Log",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare DM Log": {
             "main": [
                 [
                     {

@@ -1,5 +1,22 @@
 # Development Log
 
+## 2026-01-05 (Audit Fixes & Hardening)
+
+### n8n Pipeline Stabilization
+- **WF-01:** Processes all RSS items, uses SHA-256 source_hash, and posts to internal webhook URL.
+- **WF-02:** Fixed Redis cache usage, added retry routing, stricter validation, and improved verification merge logic.
+- **WF-03:** Uses promoted_at for tier gating, posts to distribution via internal webhook, and returns full event payloads.
+- **WF-04:** Escapes HTML, normalizes summary/entities, and writes alert logs with full fields.
+
+### Config & Security Hardening
+- Aligned env/compose (N8N_INTERNAL_URL, Telegram channels, Redis auth) and clarified .env guidance.
+- Hardened Nginx headers and OCSP resolver configuration.
+- Enforced free-tier delay at the DB query layer and normalized JSON arrays in backend.
+
+### Documentation
+- Updated GETTING-STARTED, DEPLOY, CHECKLIST, and N8N-IMPORT-GUIDE to match the new env variables and workflow wiring.
+- Added CODEX.md audit report with prioritized fixes.
+
 ## 2026-01-05 (Production Deployment)
 
 ### n8n Workflows - Production Ready

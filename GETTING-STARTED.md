@@ -12,7 +12,10 @@
 git clone https://github.com/NukeThemAII/MetaNews.git
 cd MetaNews
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys and channels
+# - GEMINI_API_KEY
+# - TELEGRAM_BOT_TOKEN
+# - TELEGRAM_PREMIUM_CHANNEL / TELEGRAM_FREE_CHANNEL
 docker compose up -d
 ```
 

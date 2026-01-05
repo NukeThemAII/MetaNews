@@ -42,14 +42,20 @@ services:
       - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
       # Execution settings
       - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE}
       - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE}
       # Webhook
       - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_INTERNAL_URL=${N8N_INTERNAL_URL}
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=${N8N_PORT}
       - N8N_PROTOCOL=${N8N_PROTOCOL}
+      # Telegram (workflow env)
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TELEGRAM_PREMIUM_CHANNEL=${TELEGRAM_PREMIUM_CHANNEL}
+      - TELEGRAM_FREE_CHANNEL=${TELEGRAM_FREE_CHANNEL}
       # Timezone
       - GENERIC_TIMEZONE=${TZ}
       - TZ=${TZ}
@@ -106,7 +112,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     command: >
-      redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+      sh -c "redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru $${REDIS_PASSWORD:+--requirepass \"$${REDIS_PASSWORD}\"}"
     volumes:
       - redis_data:/data
     networks:
@@ -158,13 +164,14 @@ services:
       - "3005:3000"
     environment:
       - NODE_ENV=${NODE_ENV}
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://${DB_POSTGRESDB_USER}:${DB_POSTGRESDB_PASSWORD}@${DB_POSTGRESDB_HOST}:${DB_POSTGRESDB_PORT}/${DB_POSTGRESDB_DATABASE}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
       - n8n
     networks:
       - frontend-net # Only frontend network
+      - backend-net
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000" ]
       interval: 30s
