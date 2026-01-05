@@ -51,9 +51,9 @@
       "maxTries": 2,
       "continueOnFail": true
     },
-        {
+    {
       "parameters": {
-        "jsCode": "// Normalize RSS items\nconst crypto = require('crypto');\nconst items = $input.all();\n\nconst toIso = (value) => {\n  const date = value ? new Date(value) : new Date();\n  return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();\n};\n\nreturn items.map(({ json: item }) => {\n  const url = item.link || item.url || item.guid || '';\n  const hashInput = url || item.title || item.contentSnippet || item.description || '';\n  const sourceHash = crypto.createHash('sha256').update(hashInput).digest('hex');\n\n  return {\n    json: {\n      title: item.title || 'Untitled',\n      content: item.contentSnippet || item.description || item.content || '',\n      url: url,\n      published_at: toIso(item.pubDate || item.isoDate || item.published_at),\n      source: item.creator || item.author || 'Unknown',\n      source_hash: sourceHash\n    }\n  };\n});"
+        "jsCode": "// Normalize RSS items\n// FNV-1a hash (fast, collision-resistant, no crypto module needed)\nconst fnv1aHash = (str) => {\n  let hash = 2166136261; // FNV offset basis\n  for (let i = 0; i < str.length; i++) {\n    hash ^= str.charCodeAt(i);\n    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);\n  }\n  return (hash >>> 0).toString(36);\n};\n\nconst items = $input.all();\n\nconst toIso = (value) => {\n  const date = value ? new Date(value) : new Date();\n  return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();\n};\n\nreturn items.map(({ json: item }) => {\n  const url = item.link || item.url || item.guid || '';\n  const hashInput = url || item.title || item.contentSnippet || item.description || '';\n  const sourceHash = fnv1aHash(hashInput);\n\n  return {\n    json: {\n      title: item.title || 'Untitled',\n      content: item.contentSnippet || item.description || item.content || '',\n      url: url,\n      published_at: toIso(item.pubDate || item.isoDate || item.published_at),\n      source: item.creator || item.author || 'Unknown',\n      source_hash: sourceHash\n    }\n  };\n});"
       },
       "id": "normalize",
       "name": "Normalize Data",
