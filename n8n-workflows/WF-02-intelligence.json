@@ -195,10 +195,10 @@
                 "messages": {
                     "values": [
                         {
-                                "content": "={{ 'Verify this intelligence analysis. If you agree, return the same values. If you disagree, return corrected values. Output strict JSON only in the form {\"severity\": number, \"confidence\": number}. Analysis: ' + JSON.stringify($json.analysis) + ' Content: ' + ($json.content || $json.title || '') }}"
-                            }
-                        ]
-                    },
+                            "content": "={{ 'Verify this intelligence analysis. If you agree, return the same values. If you disagree, return corrected values. Output strict JSON only in the form {\"severity\": number, \"confidence\": number}. Analysis: ' + JSON.stringify($json.analysis) + ' Content: ' + ($json.content || $json.title || '') }}"
+                        }
+                    ]
+                },
                 "builtInTools": {},
                 "options": {
                     "maxOutputTokens": 512,
@@ -283,7 +283,7 @@
         {
             "parameters": {
                 "method": "POST",
-                "url": "={{ ($env.N8N_INTERNAL_URL || 'http://n8n:5678') + '/webhook/gatekeeper-trigger' }}",
+                "url": "http://n8n:5678/webhook/gatekeeper-trigger",
                 "sendBody": true,
                 "specifyBody": "json",
                 "jsonBody": "={{ $json }}",
