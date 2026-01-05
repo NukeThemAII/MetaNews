@@ -283,7 +283,7 @@
         {
             "parameters": {
                 "method": "POST",
-                "url": "http://n8n:5678/webhook/gatekeeper-trigger",
+                "url": "http://earngrid.xyz:5678/webhook-test/gatekeeper-trigger",
                 "sendBody": true,
                 "specifyBody": "json",
                 "jsonBody": "={{ $json }}",
