@@ -10,6 +10,7 @@
 
 ### Config & Security Hardening
 - Aligned env/compose (N8N_INTERNAL_URL, Telegram channels, Redis auth) and clarified .env guidance.
+- Set `N8N_INTERNAL_URL` in `.env` to the public Nginx endpoint for workflow chaining.
 - Hardened Nginx headers and OCSP resolver configuration.
 - Enforced free-tier delay at the DB query layer and normalized JSON arrays in backend.
 
